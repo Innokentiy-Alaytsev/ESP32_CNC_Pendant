@@ -3,10 +3,8 @@
 class GrblDRO : public DRO {
 
 public:
-    void begin() override ;
+	void begin () override;
 
 protected:
-    
-    void drawContents() override;
-    
+	void drawContents () override;
 };
