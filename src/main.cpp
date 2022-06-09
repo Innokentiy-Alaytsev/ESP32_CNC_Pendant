@@ -43,8 +43,22 @@ HardwareSerial PrinterSerial (2);
 #define PIN_CE_LCD 4
 #define PIN_RST_LCD 22
 
-U8G2_ST7920_128X64_F_HW_SPI u8g2_{U8G2_R3, PIN_CE_LCD, PIN_RST_LCD};
-U8G2&                       Display::u8g2 = u8g2_;
+#define PIN_SCL_LCD 2  // E on LCD
+#define PIN_SDA_LCD 15 // R/W on LCD
+
+
+// U8G2_ST7920_128X64_F_HW_SPI u8g2_{U8G2_R3, PIN_CE_LCD, PIN_RST_LCD};
+
+U8G2_ST7920_128X64_F_SW_SPI u8g2_ (
+    U8G2_R3,
+    /* clock=*/PIN_SCL_LCD,
+    /* data=*/PIN_SDA_LCD,
+    /* CS=*/PIN_CE_LCD,
+    /* reset=*/PIN_RST_LCD);
+
+
+U8G2& Display::u8g2 = u8g2_;
+
 
 WebServer server;
 
