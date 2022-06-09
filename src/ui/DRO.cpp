@@ -42,7 +42,7 @@ struct POT_CFG {
 	int D;
 };
 
-static constexpr POT_CFG POTS_CFG[]{{1000, 3, 50}, {1200, 3, 50}};
+static constexpr POT_CFG POTS_CFG[]{{1200, 3, 50}, {1200, 3, 50}};
 
 void DRO::onPotValueChanged (int pot, int v)
 {
