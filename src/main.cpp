@@ -87,6 +87,7 @@ void setup ()
 	pinMode (PIN_ENC2, INPUT_PULLUP);
 
 	attachInterrupt (PIN_ENC1, encISR, CHANGE);
+	attachInterrupt (PIN_ENC2, encISR, CHANGE);
 	attachInterrupt (PIN_BT1, bt1ISR, CHANGE);
 	attachInterrupt (PIN_BT2, bt2ISR, CHANGE);
 	attachInterrupt (PIN_BT3, bt3ISR, CHANGE);
@@ -233,32 +234,24 @@ void loop ()
 	}
 }
 
+
 IRAM_ATTR void encISR ()
 {
-	static int          lastV1      = 0;
-	static unsigned int lastISRTime = millis ();
-	if (millis () < lastISRTime + 2)
-		return;
+	static constexpr int8_t gray_code_to_increment[] = {
+	    0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
 
-	int v1 = digitalRead (PIN_ENC1);
-	int v2 = digitalRead (PIN_ENC2);
-	if (v1 == HIGH && lastV1 == LOW)
-	{
-		if (v2 == HIGH)
-			Display::encVal++;
-		else
-			Display::encVal--;
-	}
-	if (v1 == LOW && lastV1 == HIGH)
-	{
-		if (v2 == LOW)
-			Display::encVal++;
-		else
-			Display::encVal--;
-	}
-	// log_printf("%d, %d\n", v1,v2);
-	// log_printf("%d, %d,  %3d\n", v1,v2,Display::encVal);
-	lastV1 = v1;
+	static uint8_t gray_code{static_cast< uint8_t > (
+	    digitalRead (PIN_ENC2) << 1 | digitalRead (PIN_ENC1))};
+
+	static int64_t counter{0};
+
+	gray_code <<= 2;
+	gray_code |= static_cast< uint8_t > (
+	    (digitalRead (PIN_ENC2) << 1) | digitalRead (PIN_ENC1));
+
+	counter += gray_code_to_increment[ gray_code & 0xF ];
+
+	Display::encVal = (counter >> 2);
 }
 
 IRAM_ATTR void btChanged (uint8_t button, uint8_t val)
