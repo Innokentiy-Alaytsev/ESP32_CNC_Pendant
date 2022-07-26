@@ -169,13 +169,6 @@ void Display::draw ()
 	drawStatusBar ();
 	drawMenu ();
 
-	// char str[15]; sprintf(str, "%lu", millis() ); u8g2.drawStr(20,110, str);
-	// char str[15]; sprintf(str, "%4d %4d", potVal[0], potVal[1] );
-	// u8g2.drawStr(5,110, str);
-	char str[ 15 ];
-	sprintf (str, "%d", encVal);
-	u8g2.drawStr (5, 110, str);
-
 	u8g2.sendBuffer ();
 	dirty = false;
 }
