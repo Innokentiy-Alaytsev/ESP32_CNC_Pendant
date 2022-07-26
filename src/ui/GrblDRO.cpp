@@ -2,40 +2,61 @@
 
 #include "../Job.h"
 #include "FileChooser.h"
+#include "ui/ToolTable.hpp"
 
 extern FileChooser fileChooser;
+extern ToolTable<> tool_table;
 
 void GrblDRO::begin ()
 {
 	DRO::begin ();
-	menuItems.push_back (MenuItem::simpleItem (0, 'o', [] (MenuItem&) {
-		Display::getDisplay ()->setScreen (&fileChooser);
-	}));
-	menuItems.push_back (MenuItem::simpleItem (0, 'p', [ this ] (MenuItem& m) {
+
+	auto id = int16_t{};
+
+	menuItems.push_back (MenuItem::simpleItem (id++, 'T', [] (MenuItem&) {
 		Job* job = Job::getJob ();
-		if (!job->isRunning ())
+
+		if (job && job->isRunning ())
 			return;
-		job->setPaused (!job->isPaused ());
-		m.glyph = job->isPaused () ? 'r' : 'p';
-		setDirty (true);
-	}));
-	menuItems.push_back (MenuItem::simpleItem (
-	    1, 'x', [] (MenuItem&) { GCodeDevice::getDevice ()->reset (); }));
-	menuItems.push_back (MenuItem::simpleItem (2, 'u', [ this ] (MenuItem& m) {
-		enableRefresh (!isRefreshEnabled ());
-		m.glyph = this->isRefreshEnabled () ? 'u' : 'U';
-		setDirty (true);
+
+		Display::getDisplay ()->setScreen (&tool_table);
 	}));
 
-	menuItems.push_back (MenuItem::simpleItem (3, 'H', [] (MenuItem&) {
+	menuItems.push_back (MenuItem::simpleItem (id++, 'o', [] (MenuItem&) {
+		Display::getDisplay ()->setScreen (&fileChooser);
+	}));
+
+	menuItems.push_back (
+	    MenuItem::simpleItem (id++, 'p', [ this ] (MenuItem& m) {
+		    Job* job = Job::getJob ();
+		    if (!job->isRunning ())
+			    return;
+		    job->setPaused (!job->isPaused ());
+		    m.glyph = job->isPaused () ? 'r' : 'p';
+		    setDirty (true);
+	    }));
+
+	menuItems.push_back (MenuItem::simpleItem (
+	    id++, 'x', [] (MenuItem&) { GCodeDevice::getDevice ()->reset (); }));
+
+	menuItems.push_back (
+	    MenuItem::simpleItem (id++, 'u', [ this ] (MenuItem& m) {
+		    enableRefresh (!isRefreshEnabled ());
+		    m.glyph = this->isRefreshEnabled () ? 'u' : 'U';
+		    setDirty (true);
+	    }));
+
+	menuItems.push_back (MenuItem::simpleItem (id++, 'H', [] (MenuItem&) {
 		GCodeDevice::getDevice ()->schedulePriorityCommand ("$H");
 	}));
-	menuItems.push_back (MenuItem::simpleItem (4, 'w', [] (MenuItem&) {
+
+	menuItems.push_back (MenuItem::simpleItem (id++, 'w', [] (MenuItem&) {
 		GCodeDevice::getDevice ()->scheduleCommand ("G10 L20 P1 X0Y0Z0");
 		GCodeDevice::getDevice ()->scheduleCommand ("G54");
 	}));
+
 	menuItems.push_back (MenuItem{
-	    5,
+	    id++,
 	    'L',
 	    true,
 	    false,

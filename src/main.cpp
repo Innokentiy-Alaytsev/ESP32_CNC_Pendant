@@ -10,6 +10,8 @@
 #include "ui/DRO.h"
 #include "ui/FileChooser.h"
 #include "ui/GrblDRO.h"
+#include "ui/ToolTable.hpp"
+
 
 HardwareSerial PrinterSerial (2);
 
@@ -70,6 +72,7 @@ enum class Mode { DRO, FILECHOOSER };
 
 Display     display;
 FileChooser fileChooser;
+ToolTable<> tool_table;
 uint8_t     droBuffer[ sizeof (GrblDRO) ];
 DRO*        dro;
 Mode        cMode = Mode::DRO;
@@ -151,6 +154,10 @@ void setup ()
 	job->add_observer (display);
 
 	// dro.config(cfg["menu"].as<JsonObjectConst>() );
+
+	tool_table.ApplyConfig (cfg[ "tools" ].as< JsonArrayConst > ());
+	tool_table.SetReturnCallback (
+	    [ &dro ] () { Display::getDisplay ()->setScreen (dro); });
 
 	fileChooser.begin ();
 	fileChooser.setCallback ([ & ] (bool res, String path) {
