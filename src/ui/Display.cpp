@@ -91,7 +91,7 @@ void Display::processButtons ()
 		bool p = buttonPressed[ bt ];
 		if (lastButtPressed[ bt ] != p)
 		{
-			S_DEBUGF ("button%d changed: %d\n", bt, p);
+			S_DEBUGF ("button %d [%d] changed: %d\n", bt, buttons[ bt ], p);
 			if (p)
 			{
 				int menuLen = cScreen->menuItems.size ();
