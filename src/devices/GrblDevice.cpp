@@ -128,7 +128,6 @@ void GrblDevice::parseGrblStatus (char* v)
 	// GD_DEBUGF("parsing %s\n", v.c_str() );
 
 	char buf[ 10 ];
-	bool mpos;
 	char cpy[ 100 ];
 	strncpy (cpy, v, 100);
 	v = cpy;
@@ -153,10 +152,9 @@ void GrblDevice::parseGrblStatus (char* v)
 	st = fi + 1;
 	fi = strchr (st, ',');
 	mystrcpy (buf, st, fi);
-	y    = atof (buf);
-	st   = fi + 1;
-	z    = atof (st);
-	mpos = startsWith (pch, "MPos");
+	y  = atof (buf);
+	st = fi + 1;
+	z  = atof (st);
 	// GD_DEBUGF("Parsed Pos: %f %f %f\n", x,y,z);
 
 	// FS:500,8000 or F:500
@@ -196,13 +194,6 @@ void GrblDevice::parseGrblStatus (char* v)
 		}
 
 		pch = strtok (nullptr, "|");
-	}
-
-	if (!mpos)
-	{
-		x -= ofsX;
-		y -= ofsY;
-		z -= ofsZ;
 	}
 
 	notify_observers (DeviceStatusEvent{0});
