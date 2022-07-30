@@ -2,7 +2,7 @@
 #define SRC_UI_TOOLTABLE_HPP
 
 
-#include <assert.h>
+#include <cassert>
 
 #include <functional>
 
@@ -15,35 +15,13 @@
 #include <etl/utility.h>
 #include <stdio.h>
 
+#include "../CoordinateOffsets.hpp"
 #include "Screen.h"
-
-
-struct ToolOffsets {
-	ToolOffsets () = default;
-
-	ToolOffsets (float i_x, float i_y, float i_z)
-	    : x{i_x}
-	    , y{i_y}
-	    , z{i_z}
-	{
-	}
-
-
-	ToolOffsets operator- () const noexcept
-	{
-		return ToolOffsets{-x, -y, -z};
-	}
-
-
-	float x = 0.0f;
-	float y = 0.0f;
-	float z = 0.0f;
-};
 
 
 struct Tool {
 	etl::string< 10 > name;
-	ToolOffsets       offsets;
+	CoordinateOffsets offsets;
 };
 
 
@@ -72,9 +50,16 @@ public:
 	ToolTable () = default;
 
 
-	void ApplyConfig (JsonArrayConst i_config)
+	void ApplyConfig (JsonObjectConst i_config)
 	{
-		for (auto&& tool_doc : i_config)
+		auto const base_offsets_conf =
+		    i_config[ "base_offsets" ].as< JsonObjectConst > ();
+
+		base_offsets_.x = base_offsets_conf[ "x" ].as< float > ();
+		base_offsets_.y = base_offsets_conf[ "y" ].as< float > ();
+		base_offsets_.z = base_offsets_conf[ "z" ].as< float > ();
+
+		for (auto&& tool_doc : i_config[ "tools" ].as< JsonArrayConst > ())
 		{
 			auto const tool_obj = tool_doc.as< JsonObjectConst > ();
 
@@ -205,37 +190,7 @@ protected:
 
 			if (auto const device = GCodeDevice::getDevice ())
 			{
-				static auto const SetDynamicToolLengthOffset =
-				    [] (ToolOffsets const& i_offsets,
-				        GCodeDevice* const o_device) {
-					    static char constexpr kFormat[] =
-					        "G92 X%3.3f Y%3.3f Z%3.3f";
-					    static char constexpr kMaxExpectedNumberString[] =
-					        "-000.000";
-					    static auto constexpr kBufferSize = sizeof (kFormat) +
-					        sizeof (kMaxExpectedNumberString) * 3 + 1;
-
-
-					    char cmd[ kBufferSize ]{};
-
-					    snprintf (
-					        cmd,
-					        sizeof (cmd),
-					        kFormat,
-					        i_offsets.x,
-					        i_offsets.y,
-					        i_offsets.z);
-
-					    o_device->scheduleCommand (cmd);
-				    };
-
-				device->scheduleCommand ("G92.1");
-
-				if (kNoToolId != active_tool_)
-				{
-					SetDynamicToolLengthOffset (
-					    tools_[ active_tool_ ].offsets, device);
-				}
+				UpdateToolOffsets (active_tool_, device);
 			}
 
 			setDirty ();
@@ -306,10 +261,37 @@ private:
 		}
 	}
 
+
+	void UpdateToolOffsets (
+	    int const i_current_tool, GCodeDevice* const o_device)
+	{
+		assert (nullptr != o_device);
+
+		o_device->scheduleCommand ("G92.1");
+
+		if (kNoToolId == i_current_tool)
+		{
+			return;
+		}
+
+		/*
+		  On one hand, those are coordinates and not offsets. On the other hand,
+		  new offsets for G92 will be derived from these.
+		*/
+		auto const current_position = CoordinateOffsets{
+		    o_device->getX (), o_device->getY (), o_device->getZ ()};
+
+		SendG92Offsets (
+		    current_position + base_offsets_ + tools_[ i_current_tool ].offsets,
+		    o_device);
+	}
+
 	int selected_line_{0};
 
 	int active_tool_{kNoToolId};
 	int active_tool_line_{0};
+
+	CoordinateOffsets base_offsets_;
 
 	etl::flat_map< int, Tool, kCapacity > tools_;
 
