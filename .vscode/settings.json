@@ -1,4 +1,17 @@
 {
+    "debug.console.wordWrap": true,
+    "[c]": {
+        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
+    },
+    "[cpp]": {
+        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
+    },
+    "[javascript]": {
+        "editor.defaultFormatter": "xaver.clang-format"
+    },
+    "[Log]": {
+        "editor.wordWrap": "on"
+    },
     "files.associations": {
         "*.tcc": "cpp",
         "functional": "cpp",
@@ -20,5 +33,37 @@
         "regex": "cpp",
         "bitset": "cpp",
         "cstdlib": "cpp"
-    }
+    },
+    "files.trimTrailingWhitespace": true,
+    "files.eol": "\n",
+    "files.insertFinalNewline": true,
+    "files.trimFinalNewlines": true,
+    "editor.formatOnPaste": true,
+    "editor.formatOnSave": true,
+    "editor.formatOnType": true,
+    "C_Cpp.default.cppStandard": "c++17",
+    "C_Cpp.default.cStandard": "c99",
+    "C_Cpp.default.intelliSenseMode": "windows-msvc-x86",
+    "C_Cpp.formatting": "clangFormat",
+    "C_Cpp.intelliSenseEngine": "Disabled", // Prefer clangd
+    "C_Cpp.autocomplete": "Disabled", // Prefer clangd
+    "C_Cpp.errorSquiggles": "Disabled", // Prefer clangd
+    "editor.semanticHighlighting.enabled": true,
+    "debug.terminal.clearBeforeReusing": true,
+    "cmake.copyCompileCommands": "${workspaceFolder}/compile_commands.json",
+    "C/C++ Include Guard.Comment Style": "Line",
+    "C/C++ Include Guard.Macro Type": "Filepath",
+    "C/C++ Include Guard.Remove Extension": false,
+    "C/C++ Include Guard.Shorten Underscores": false,
+    "formatFiles.excludedFolders": [
+        ".cache",
+        ".chrome",
+        ".git",
+        ".vscode",
+        "__build__",
+        "__dist__",
+        "dist",
+        "node_modules"
+    ],
+    "formatFiles.excludePattern": "**/COPYRIGHT_HOLDER,**/COPYRIGHT_INFO,**/COPYRIGHT_INFO_UTF8,**/LICENSE,**/*.FCStd,**/*.FCStd1,**/*.SLDASM,**/*.SLDPRT,**/*.STL,**/*.blend,**/*.blend1,**/*.docx,**/*.drawio,**/*.gif,**/*.graphml,**/*.in,**/*.jpg,**/*.ogg,**/*.pdf,**/*.png,**/*.pri,**/*.pro,**/*.svg,**/*.sldasm,**/*.sldprt,**/*.stl,**/*.ts,**/*.ui"
 }
