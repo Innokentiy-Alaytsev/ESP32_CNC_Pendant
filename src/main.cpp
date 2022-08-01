@@ -155,7 +155,8 @@ void setup ()
 
 	// dro.config(cfg["menu"].as<JsonObjectConst>() );
 
-	tool_table.ApplyConfig (cfg[ "tools" ].as< JsonArrayConst > ());
+	tool_table.ApplyConfig (
+	    cfg[ "tool_compensation" ].as< JsonObjectConst > ());
 	tool_table.SetReturnCallback (
 	    [ &dro ] () { Display::getDisplay ()->setScreen (dro); });
 
