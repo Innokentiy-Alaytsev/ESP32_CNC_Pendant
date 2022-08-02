@@ -7,6 +7,22 @@
 extern FileChooser fileChooser;
 extern ToolTable<> tool_table;
 
+
+void GrblDRO::ApplyConfig (JsonObjectConst i_config) noexcept
+{
+	if (i_config.isNull ())
+	{
+		return;
+	}
+
+	if (auto const wco_offset_cmd_conf = i_config[ "wco_offset_cmd" ];
+	    !wco_offset_cmd_conf.isNull ())
+	{
+		wco_offset_cmd_ = wco_offset_cmd_conf.as< String > ();
+	}
+}
+
+
 void GrblDRO::begin ()
 {
 	DRO::begin ();
@@ -50,8 +66,8 @@ void GrblDRO::begin ()
 		GCodeDevice::getDevice ()->schedulePriorityCommand ("$H");
 	}));
 
-	menuItems.push_back (MenuItem::simpleItem (id++, 'w', [] (MenuItem&) {
-		GCodeDevice::getDevice ()->scheduleCommand ("G10 L20 P1 X0Y0Z0");
+	menuItems.push_back (MenuItem::simpleItem (id++, 'w', [ this ] (MenuItem&) {
+		GCodeDevice::getDevice ()->scheduleCommand (wco_offset_cmd_);
 		GCodeDevice::getDevice ()->scheduleCommand ("G54");
 	}));
 

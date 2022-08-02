@@ -68,6 +68,8 @@ GCodeDevice* dev = nullptr;
 
 Job* job;
 
+DynamicJsonDocument grbl_dro_config{512};
+
 enum class Mode { DRO, FILECHOOSER };
 
 Display     display;
@@ -129,7 +131,7 @@ void setup ()
 	}
 	Serial.println ("initialization done.");
 
-	DynamicJsonDocument  cfg (512);
+	DynamicJsonDocument  cfg (4096);
 	File                 file  = SD.open ("/config.json");
 	DeserializationError error = deserializeJson (cfg, file);
 	if (error)
@@ -138,8 +140,20 @@ void setup ()
 	server.config (cfg[ "web" ].as< JsonObjectConst > ());
 	server.add_observer (display);
 
+	if (auto const grbl_dro_conf_doc = cfg[ "GRBL DRO" ];
+	    !grbl_dro_conf_doc.isNull ())
+	{
+		grbl_dro_config.set (grbl_dro_conf_doc);
+	}
+
 	xTaskCreatePinnedToCore (
-	    deviceLoop, "DeviceTask", 4096, nullptr, 1, &deviceTask, 1); // cpu1
+	    deviceLoop,
+	    "DeviceTask",
+	    4096,
+	    nullptr,
+	    1,
+	    &deviceTask,
+	    1); // cpu1
 
 	xTaskCreatePinnedToCore (
 	    wifiLoop,
@@ -200,7 +214,11 @@ void deviceLoop (void* pvParams)
 
 	if (dev->getType () == "grbl")
 	{
-		dro = new (droBuffer) GrblDRO ();
+		auto const grbl_dro = new (droBuffer) GrblDRO ();
+
+		grbl_dro->ApplyConfig (grbl_dro_config.as< JsonObjectConst > ());
+
+		dro = grbl_dro;
 	}
 	else
 		dro = new (droBuffer) DRO ();
