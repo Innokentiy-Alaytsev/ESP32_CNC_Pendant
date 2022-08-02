@@ -1,5 +1,9 @@
 #include "GrblDRO.h"
 
+
+#include <etl/algorithm.h>
+#include <etl/flat_map.h>
+
 #include "../Job.h"
 #include "FileChooser.h"
 #include "ui/ToolTable.hpp"
@@ -10,6 +14,12 @@ extern ToolTable<> tool_table;
 
 void GrblDRO::ApplyConfig (JsonObjectConst i_config) noexcept
 {
+	static auto constexpr Contains = [] (auto&& i_container, auto&& i_value) {
+		return i_container.end () !=
+		    etl::find (i_container.begin (), i_container.end (), i_value);
+	};
+
+
 	if (i_config.isNull ())
 	{
 		return;
@@ -20,68 +30,142 @@ void GrblDRO::ApplyConfig (JsonObjectConst i_config) noexcept
 	{
 		wco_offset_cmd_ = wco_offset_cmd_conf.as< String > ();
 	}
+
+	if (auto const menu_conf = i_config[ "menu" ].as< JsonObjectConst > ();
+	    !menu_conf.isNull ())
+	{
+		etl::vector< char, kMenuItemCountMax > disabled_items;
+
+		if (auto const disabled_conf =
+		        menu_conf[ "disabled" ].as< JsonArrayConst > ();
+		    !disabled_conf.isNull ())
+		{
+			for (auto&& item : disabled_conf)
+			{
+				disabled_items.push_back (item.as< String > ()[ 0 ]);
+			}
+		}
+
+		if (auto const order_conf =
+		        menu_conf[ "order" ].as< JsonArrayConst > ();
+		    !order_conf.isNull ())
+		{
+
+			for (auto&& item : order_conf)
+			{
+				auto const item_key = item.as< String > ()[ 0 ];
+
+				if (!Contains (disabled_items, item_key))
+				{
+					active_menu_items.push_back (item_key);
+				}
+			}
+		}
+
+		for (auto&& item : kDefaultMenuItems)
+		{
+			if (!Contains (disabled_items, item) &&
+			    !Contains (active_menu_items, item))
+			{
+				active_menu_items.push_back (item);
+			}
+		}
+	}
 }
 
 
 void GrblDRO::begin ()
 {
+	using AddMenuItemFunction = MenuItem (*) (char, GrblDRO&, int16_t&);
+
 	DRO::begin ();
+
+	etl::flat_map< char, AddMenuItemFunction, kMenuItemCountMax >
+	    menu_item_factory = {
+	        {'T',
+	         [] (char i_glyph, GrblDRO&, int16_t& io_id) {
+		         return MenuItem::simpleItem (io_id++, i_glyph, [] (MenuItem&) {
+			         Job* job = Job::getJob ();
+
+			         if (job && job->isRunning ())
+				         return;
+
+			         Display::getDisplay ()->setScreen (&tool_table);
+		         });
+	         }},
+	        {'o',
+	         [] (char i_glyph, GrblDRO&, int16_t& io_id) {
+		         return MenuItem::simpleItem (io_id++, i_glyph, [] (MenuItem&) {
+			         Display::getDisplay ()->setScreen (&fileChooser);
+		         });
+	         }},
+	        {'p',
+	         [] (char i_glyph, GrblDRO& io_dro, int16_t& io_id) {
+		         return MenuItem::simpleItem (
+		             io_id++, i_glyph, [ &dro = io_dro ] (MenuItem& m) {
+			             Job* job = Job::getJob ();
+			             if (!job->isRunning ())
+				             return;
+			             job->setPaused (!job->isPaused ());
+			             m.glyph = job->isPaused () ? 'r' : 'p';
+			             dro.setDirty (true);
+		             });
+	         }},
+	        {'x',
+	         [] (char i_glyph, GrblDRO& io_dro, int16_t& io_id) {
+		         return MenuItem::simpleItem (io_id++, i_glyph, [] (MenuItem&) {
+			         GCodeDevice::getDevice ()->reset ();
+		         });
+	         }},
+	        {'u',
+	         [] (char i_glyph, GrblDRO& io_dro, int16_t& io_id) {
+		         return MenuItem::simpleItem (
+		             io_id++, i_glyph, [ &dro = io_dro ] (MenuItem& m) {
+			             dro.enableRefresh (!dro.isRefreshEnabled ());
+			             m.glyph = dro.isRefreshEnabled () ? 'u' : 'U';
+			             dro.setDirty (true);
+		             });
+	         }},
+	        {'H',
+	         [] (char i_glyph, GrblDRO& io_dro, int16_t& io_id) {
+		         return MenuItem::simpleItem (io_id++, i_glyph, [] (MenuItem&) {
+			         GCodeDevice::getDevice ()->schedulePriorityCommand ("$H");
+		         });
+	         }},
+	        {'w',
+	         [] (char i_glyph, GrblDRO& io_dro, int16_t& io_id) {
+		         return MenuItem::simpleItem (
+		             io_id++, i_glyph, [ &dro = io_dro ] (MenuItem&) {
+			             GCodeDevice::getDevice ()->scheduleCommand (
+			                 dro.wco_offset_cmd_);
+			             GCodeDevice::getDevice ()->scheduleCommand ("G54");
+		             });
+	         }},
+	        {'L', [] (char i_glyph, GrblDRO& io_dro, int16_t& io_id) {
+		         return MenuItem{
+		             io_id++,
+		             i_glyph,
+		             true,
+		             false,
+		             nullptr,
+		             [] (MenuItem&) {
+			             GCodeDevice::getDevice ()->scheduleCommand ("M3 S1");
+		             },
+		             [] (MenuItem&) {
+			             GCodeDevice::getDevice ()->scheduleCommand ("M5");
+		             }};
+	         }}};
 
 	auto id = int16_t{};
 
-	menuItems.push_back (MenuItem::simpleItem (id++, 'T', [] (MenuItem&) {
-		Job* job = Job::getJob ();
+	for (auto&& key : active_menu_items)
+	{
+		assert (menu_item_factory.count (key));
 
-		if (job && job->isRunning ())
-			return;
-
-		Display::getDisplay ()->setScreen (&tool_table);
-	}));
-
-	menuItems.push_back (MenuItem::simpleItem (id++, 'o', [] (MenuItem&) {
-		Display::getDisplay ()->setScreen (&fileChooser);
-	}));
-
-	menuItems.push_back (
-	    MenuItem::simpleItem (id++, 'p', [ this ] (MenuItem& m) {
-		    Job* job = Job::getJob ();
-		    if (!job->isRunning ())
-			    return;
-		    job->setPaused (!job->isPaused ());
-		    m.glyph = job->isPaused () ? 'r' : 'p';
-		    setDirty (true);
-	    }));
-
-	menuItems.push_back (MenuItem::simpleItem (
-	    id++, 'x', [] (MenuItem&) { GCodeDevice::getDevice ()->reset (); }));
-
-	menuItems.push_back (
-	    MenuItem::simpleItem (id++, 'u', [ this ] (MenuItem& m) {
-		    enableRefresh (!isRefreshEnabled ());
-		    m.glyph = this->isRefreshEnabled () ? 'u' : 'U';
-		    setDirty (true);
-	    }));
-
-	menuItems.push_back (MenuItem::simpleItem (id++, 'H', [] (MenuItem&) {
-		GCodeDevice::getDevice ()->schedulePriorityCommand ("$H");
-	}));
-
-	menuItems.push_back (MenuItem::simpleItem (id++, 'w', [ this ] (MenuItem&) {
-		GCodeDevice::getDevice ()->scheduleCommand (wco_offset_cmd_);
-		GCodeDevice::getDevice ()->scheduleCommand ("G54");
-	}));
-
-	menuItems.push_back (MenuItem{
-	    id++,
-	    'L',
-	    true,
-	    false,
-	    nullptr,
-	    [] (MenuItem&) {
-		    GCodeDevice::getDevice ()->scheduleCommand ("M3 S1");
-	    },
-	    [] (MenuItem&) { GCodeDevice::getDevice ()->scheduleCommand ("M5"); }});
+		menuItems.push_back (menu_item_factory[ key ](key, *this, id));
+	}
 };
+
 
 void GrblDRO::drawContents ()
 {
