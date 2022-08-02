@@ -3,6 +3,7 @@
 
 #include <etl/algorithm.h>
 #include <etl/flat_map.h>
+#include <etl/type_traits.h>
 
 #include "../Job.h"
 #include "FileChooser.h"
@@ -11,15 +12,64 @@
 extern FileChooser fileChooser;
 extern ToolTable<> tool_table;
 
-
-void GrblDRO::ApplyConfig (JsonObjectConst i_config) noexcept
-{
-	static auto constexpr Contains = [] (auto&& i_container, auto&& i_value) {
+namespace {
+	template < class TContainer, class TValue >
+	constexpr bool Contains (TContainer&& i_container, TValue&& i_value)
+	{
 		return i_container.end () !=
 		    etl::find (i_container.begin (), i_container.end (), i_value);
 	};
 
 
+	template < class TConfig, class TDefaultItems, class TActiveItems >
+	constexpr void LoadItemsSettings (
+	    TConfig&&       i_config,
+	    TDefaultItems&& i_default_items,
+	    TActiveItems&   o_active_items)
+	{
+		etl::vector< char, etl::remove_reference_t< TDefaultItems >::MAX_SIZE >
+		    disabled_items;
+
+		if (auto const disabled_conf =
+		        i_config[ "disabled" ].template as< JsonArrayConst > ();
+		    !disabled_conf.isNull ())
+		{
+			for (auto&& item : disabled_conf)
+			{
+				disabled_items.push_back (item.template as< String > ()[ 0 ]);
+			}
+		}
+
+		if (auto const order_conf =
+		        i_config[ "order" ].template as< JsonArrayConst > ();
+		    !order_conf.isNull ())
+		{
+
+			for (auto&& item : order_conf)
+			{
+				auto const item_key = item.template as< String > ()[ 0 ];
+
+				if (!Contains (disabled_items, item_key))
+				{
+					o_active_items.push_back (item_key);
+				}
+			}
+		}
+
+		for (auto&& item : i_default_items)
+		{
+			if (!Contains (disabled_items, item) &&
+			    !Contains (o_active_items, item))
+			{
+				o_active_items.push_back (item);
+			}
+		}
+	};
+} // namespace
+
+
+void GrblDRO::ApplyConfig (JsonObjectConst i_config) noexcept
+{
 	if (i_config.isNull ())
 	{
 		return;
@@ -34,42 +84,13 @@ void GrblDRO::ApplyConfig (JsonObjectConst i_config) noexcept
 	if (auto const menu_conf = i_config[ "menu" ].as< JsonObjectConst > ();
 	    !menu_conf.isNull ())
 	{
-		etl::vector< char, kMenuItemCountMax > disabled_items;
+		LoadItemsSettings (menu_conf, kDefaultMenuItems, active_menu_items);
+	}
 
-		if (auto const disabled_conf =
-		        menu_conf[ "disabled" ].as< JsonArrayConst > ();
-		    !disabled_conf.isNull ())
-		{
-			for (auto&& item : disabled_conf)
-			{
-				disabled_items.push_back (item.as< String > ()[ 0 ]);
-			}
-		}
-
-		if (auto const order_conf =
-		        menu_conf[ "order" ].as< JsonArrayConst > ();
-		    !order_conf.isNull ())
-		{
-
-			for (auto&& item : order_conf)
-			{
-				auto const item_key = item.as< String > ()[ 0 ];
-
-				if (!Contains (disabled_items, item_key))
-				{
-					active_menu_items.push_back (item_key);
-				}
-			}
-		}
-
-		for (auto&& item : kDefaultMenuItems)
-		{
-			if (!Contains (disabled_items, item) &&
-			    !Contains (active_menu_items, item))
-			{
-				active_menu_items.push_back (item);
-			}
-		}
+	if (auto const dro_conf = i_config[ "DRO" ].as< JsonObjectConst > ();
+	    !dro_conf.isNull ())
+	{
+		LoadItemsSettings (dro_conf, kDefaultDroItems, active_dro_items);
 	}
 }
 
@@ -193,22 +214,69 @@ void GrblDRO::drawContents ()
 
 	u8g2.setDrawColor (2);
 
-	drawAxis ('X', dev->getX () - dev->getXOfs (), y);
-	y += h;
-	drawAxis ('Y', dev->getY () - dev->getYOfs (), y);
-	y += h;
-	drawAxis ('Z', dev->getZ () - dev->getZOfs (), y);
-	y += h;
+	/*
+	  Not using a map this time since the DRO items are fer in number and are
+	  repeated (with and without offsets). Another reason is that items would
+	  have to be stored in GrblDRO object permanently.
+	*/
+	for (auto&& item : active_dro_items)
+	{
+		switch (item)
+		{
+		default: {
+			continue;
+		}
+		break;
+
+		case 'X': {
+			drawAxis ('X', dev->getX () - dev->getXOfs (), y);
+		}
+		break;
+
+		case 'Y': {
+			drawAxis ('Y', dev->getY () - dev->getYOfs (), y);
+		}
+		break;
+
+		case 'Z': {
+			drawAxis ('Z', dev->getZ () - dev->getZOfs (), y);
+		}
+		break;
+		}
+
+		y += h;
+	}
 
 	u8g2.drawHLine (0, y - 1, u8g2.getWidth ());
 	if (dev->getXOfs () != 0 || dev->getYOfs () != 0 || dev->getZOfs () != 0)
 	{
-		drawAxis ('x', dev->getX (), y);
-		y += h;
-		drawAxis ('y', dev->getY (), y);
-		y += h;
-		drawAxis ('z', dev->getZ (), y);
-		y += h;
+		for (auto&& item : active_dro_items)
+		{
+			switch (item)
+			{
+			default: {
+				continue;
+			}
+			break;
+
+			case 'X': {
+				drawAxis ('x', dev->getX (), y);
+			}
+			break;
+
+			case 'Y': {
+				drawAxis ('y', dev->getY (), y);
+			}
+			break;
+
+			case 'Z': {
+				drawAxis ('z', dev->getZ (), y);
+			}
+			break;
+			}
+
+			y += h;
+		}
 	}
 	else
 	{
