@@ -183,10 +183,13 @@ protected:
 			auto const prev_tool = active_tool_;
 
 			active_tool_line_ = selected_line_;
-			active_tool_      = (0 < selected_line_)
-			         ? (tools_.begin () + static_cast< size_t > (active_tool_line_))
-                      ->first
-			         : kNoToolId;
+
+			auto const active_tool_index =
+			    static_cast< size_t > (active_tool_line_ - 1);
+
+			active_tool_ = (0 < active_tool_line_)
+			    ? ((tools_.begin () + active_tool_index)->first)
+			    : kNoToolId;
 
 			if (auto const device = GCodeDevice::getDevice ())
 			{
