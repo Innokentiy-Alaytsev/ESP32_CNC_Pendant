@@ -1,5 +1,9 @@
 #include "DRO.h"
 
+
+#include <etl/algorithm.h>
+
+
 void DRO::drawContents ()
 {
 	const int LEN = 20;
@@ -44,31 +48,50 @@ struct POT_CFG {
 
 static constexpr POT_CFG POTS_CFG[]{{1200, 3, 50}, {1200, 3, 50}};
 
-void DRO::onPotValueChanged (int pot, int v)
+void DRO::onPotValueChanged (int pot, int i_adc_value)
 {
 	//  center lines : 2660    3480    4095
 	// borders:            3000    3700
 	// v1:    0     250     500
 	//          125    375
 
-	const POT_CFG& p   = POTS_CFG[ pot ];
-	const int      l   = p.MX / p.N;
-	const int      d   = POTS_CFG[ pot ].D;
-	int&           var = pot == 0 ? cAxis : cDist;
-	bool           ch  = false;
+	const POT_CFG& p                  = POTS_CFG[ pot ];
+	const int      position_adc_width = p.MX / p.N;
+	const int      clearance_offset   = POTS_CFG[ pot ].D;
+	int&           var                = pot == 0 ? cAxis : cDist;
+	bool           ch                 = false;
 
-	int rangeL = var * l - d;
-	int rangeH = rangeL + l + 2 * d;
-	if (v < rangeL && var > 0)
+	auto const maybe_position =
+	    etl::min (p.N - 1, i_adc_value / position_adc_width);
+
+	auto const position_range_min =
+	    etl::max (0, maybe_position - 1) * position_adc_width +
+	    clearance_offset;
+
+	auto const position_range_max =
+	    (maybe_position + 1) * position_adc_width - clearance_offset;
+
+	if ((position_range_min <= i_adc_value) &&
+	    (i_adc_value <= position_range_max))
 	{
-		var--;
+		var = maybe_position;
+
 		ch = true;
 	}
-	if (v > rangeH && var < p.N - 1)
-	{
-		var++;
-		ch = true;
-	}
+
+	// int rangeL = var * position_adc_range - clearance_offset;
+	// int rangeH = rangeL + position_adc_range + 2 * clearance_offset;
+	// if (v < rangeL && var > 0)
+	// {
+	// 	var--;
+	// 	ch = true;
+	// }
+	// if (v > rangeH && var < p.N - 1)
+	// {
+	// 	var++;
+	// 	ch = true;
+	// }
+
 	if (ch && pot == 0)
 		lastJogTime = 0;
 	if (ch)

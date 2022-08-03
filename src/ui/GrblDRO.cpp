@@ -203,14 +203,13 @@ void GrblDRO::drawContents ()
 	int y = Display::STATUS_BAR_HEIGHT + 2,
 	    h = u8g2.getAscent () - u8g2.getDescent () + 2;
 
-	// u8g2.drawGlyph(0, y+h*(int)cAxis, '>' );
-
 	u8g2.setDrawColor (1);
 
 	if (dev->canJog ())
-		u8g2.drawBox (0, y + h * (int)cAxis - 1, 8, h);
+		u8g2.drawBox (0, y + h * static_cast< int > (selected_dro_item_), 8, h);
 	else
-		u8g2.drawFrame (0, y + h * (int)cAxis - 1, 8, h);
+		u8g2.drawFrame (
+		    0, y + h * static_cast< int > (selected_dro_item_), 8, h);
 
 	u8g2.setDrawColor (2);
 
@@ -299,8 +298,24 @@ void GrblDRO::drawContents ()
 	    str,
 	    LEN,
 	    m < 1 ? "%c x%.1f %s" : "%c x%.0f %s",
-	    axisChar (cAxis),
+	    active_dro_items[ selected_dro_item_ ],
 	    m,
 	    stat);
 	u8g2.drawStr (0, y, str);
 };
+
+
+void GrblDRO::onPotValueChanged (int i_pot, int i_value)
+{
+	DRO::onPotValueChanged (i_pot, i_value);
+
+	selected_dro_item_ = etl::clamp (
+	    cAxis, 0, static_cast< int > (active_dro_items.size ()) - 1);
+
+	cAxis = static_cast< JogAxis > (etl::distance (
+	    kDefaultDroItems.begin (),
+	    etl::find (
+	        kDefaultDroItems.begin (),
+	        kDefaultDroItems.end (),
+	        active_dro_items[ selected_dro_item_ ])));
+}
