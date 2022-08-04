@@ -31,8 +31,8 @@ private:
 	    {'X', 'Y', 'Z'};
 
 	String wco_offset_cmd_ = "G10 L20 P1 X0Y0Z0";
-	etl::vector< char, kMenuItemCountMax > active_menu_items;
-	etl::vector< char, kDroItemCountMax >  active_dro_items;
+	etl::vector< char, kMenuItemCountMax > active_menu_items_;
+	etl::vector< char, kDroItemCountMax >  active_dro_items_;
 
 	int selected_dro_item_{0};
 };

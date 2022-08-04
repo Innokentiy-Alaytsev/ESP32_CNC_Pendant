@@ -84,13 +84,13 @@ void GrblDRO::ApplyConfig (JsonObjectConst i_config) noexcept
 	if (auto const menu_conf = i_config[ "menu" ].as< JsonObjectConst > ();
 	    !menu_conf.isNull ())
 	{
-		LoadItemsSettings (menu_conf, kDefaultMenuItems, active_menu_items);
+		LoadItemsSettings (menu_conf, kDefaultMenuItems, active_menu_items_);
 	}
 
 	if (auto const dro_conf = i_config[ "DRO" ].as< JsonObjectConst > ();
 	    !dro_conf.isNull ())
 	{
-		LoadItemsSettings (dro_conf, kDefaultDroItems, active_dro_items);
+		LoadItemsSettings (dro_conf, kDefaultDroItems, active_dro_items_);
 	}
 }
 
@@ -179,7 +179,7 @@ void GrblDRO::begin ()
 
 	auto id = int16_t{};
 
-	for (auto&& key : active_menu_items)
+	for (auto&& key : active_menu_items_)
 	{
 		assert (menu_item_factory.count (key));
 
@@ -218,7 +218,7 @@ void GrblDRO::drawContents ()
 	  repeated (with and without offsets). Another reason is that items would
 	  have to be stored in GrblDRO object permanently.
 	*/
-	for (auto&& item : active_dro_items)
+	for (auto&& item : active_dro_items_)
 	{
 		switch (item)
 		{
@@ -249,7 +249,7 @@ void GrblDRO::drawContents ()
 	u8g2.drawHLine (0, y - 1, u8g2.getWidth ());
 	if (dev->getXOfs () != 0 || dev->getYOfs () != 0 || dev->getZOfs () != 0)
 	{
-		for (auto&& item : active_dro_items)
+		for (auto&& item : active_dro_items_)
 		{
 			switch (item)
 			{
@@ -298,7 +298,7 @@ void GrblDRO::drawContents ()
 	    str,
 	    LEN,
 	    m < 1 ? "%c x%.1f %s" : "%c x%.0f %s",
-	    active_dro_items[ selected_dro_item_ ],
+	    active_dro_items_[ selected_dro_item_ ],
 	    m,
 	    stat);
 	u8g2.drawStr (0, y, str);
@@ -310,12 +310,12 @@ void GrblDRO::onPotValueChanged (int i_pot, int i_value)
 	DRO::onPotValueChanged (i_pot, i_value);
 
 	selected_dro_item_ = etl::clamp (
-	    cAxis, 0, static_cast< int > (active_dro_items.size ()) - 1);
+	    cAxis, 0, static_cast< int > (active_dro_items_.size ()) - 1);
 
 	cAxis = static_cast< JogAxis > (etl::distance (
 	    kDefaultDroItems.begin (),
 	    etl::find (
 	        kDefaultDroItems.begin (),
 	        kDefaultDroItems.end (),
-	        active_dro_items[ selected_dro_item_ ])));
+	        active_dro_items_[ selected_dro_item_ ])));
 }
