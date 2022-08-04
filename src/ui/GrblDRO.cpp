@@ -190,65 +190,70 @@ void GrblDRO::begin ()
 
 void GrblDRO::drawContents ()
 {
-	const int LEN = 20;
-	char      str[ LEN ];
+	static auto constexpr ComputeLineHeight = [] (auto&& i_font,
+	                                              auto&& io_u8g2) {
+		io_u8g2.setFont (i_font);
+
+		return io_u8g2.getAscent () - io_u8g2.getDescent () + 2;
+	};
+
+
+	static constexpr auto& kDroFont  = u8g2_font_7x13B_tr;
+	static constexpr auto& kMachFont = u8g2_font_5x8_tr;
+
+	static auto const kDroLineHeight =
+	    ComputeLineHeight (kDroFont, Display::u8g2);
+	static auto const kMachLineHeight =
+	    ComputeLineHeight (kMachFont, Display::u8g2);
+
+	static auto constexpr kTopY = Display::STATUS_BAR_HEIGHT + 2;
+
+
+	static auto constexpr ComputeDroLineY = [] (auto&& i_line) {
+		return kTopY + kMachLineHeight * (i_line + 1) + kDroLineHeight * i_line;
+	};
+
+
+	static auto constexpr ComputeMachLineY = [] (auto&& i_line) {
+		return kTopY + kMachLineHeight * i_line +
+		    static_cast< int > (0 < i_line) * kDroLineHeight * i_line;
+	};
+
 
 	GrblDevice* dev = static_cast< GrblDevice* > (GCodeDevice::getDevice ());
+
 	if (dev == nullptr)
+	{
 		return;
+	}
 
 	U8G2& u8g2 = Display::u8g2;
 
-	u8g2.setFont (u8g2_font_7x13B_tr);
-	int y = Display::STATUS_BAR_HEIGHT + 2,
-	    h = u8g2.getAscent () - u8g2.getDescent () + 2;
+	{ // Draw DRO coordinates
+		u8g2.setFont (kDroFont);
 
-	u8g2.setDrawColor (1);
+		u8g2.setDrawColor (1);
 
-	if (dev->canJog ())
-		u8g2.drawBox (0, y + h * static_cast< int > (selected_dro_item_), 8, h);
-	else
-		u8g2.drawFrame (
-		    0, y + h * static_cast< int > (selected_dro_item_), 8, h);
-
-	u8g2.setDrawColor (2);
-
-	/*
-	  Not using a map this time since the DRO items are fer in number and are
-	  repeated (with and without offsets). Another reason is that items would
-	  have to be stored in GrblDRO object permanently.
-	*/
-	for (auto&& item : active_dro_items_)
-	{
-		switch (item)
+		if (dev->canJog ())
 		{
-		default: {
-			continue;
+			u8g2.drawBox (
+			    0, ComputeDroLineY (selected_dro_item_), 8, kDroLineHeight);
 		}
-		break;
-
-		case 'X': {
-			drawAxis ('X', dev->getX () - dev->getXOfs (), y);
-		}
-		break;
-
-		case 'Y': {
-			drawAxis ('Y', dev->getY () - dev->getYOfs (), y);
-		}
-		break;
-
-		case 'Z': {
-			drawAxis ('Z', dev->getZ () - dev->getZOfs (), y);
-		}
-		break;
+		else
+		{
+			u8g2.drawFrame (
+			    0, ComputeDroLineY (selected_dro_item_), 8, kDroLineHeight);
 		}
 
-		y += h;
-	}
+		u8g2.setDrawColor (2);
 
-	u8g2.drawHLine (0, y - 1, u8g2.getWidth ());
-	if (dev->getXOfs () != 0 || dev->getYOfs () != 0 || dev->getZOfs () != 0)
-	{
+		auto dro_line = int{};
+
+		/*
+		  Not using a map this time since the DRO items are few in number and
+		  are repeated (with and without offsets). Another reason is that items
+		  would have to be stored in GrblDRO object permanently.
+		*/
 		for (auto&& item : active_dro_items_)
 		{
 			switch (item)
@@ -259,49 +264,97 @@ void GrblDRO::drawContents ()
 			break;
 
 			case 'X': {
-				drawAxis ('x', dev->getX (), y);
+				drawAxis ('X', dev->getX (), ComputeDroLineY (dro_line));
 			}
 			break;
 
 			case 'Y': {
-				drawAxis ('y', dev->getY (), y);
+				drawAxis ('Y', dev->getY (), ComputeDroLineY (dro_line));
 			}
 			break;
 
 			case 'Z': {
-				drawAxis ('z', dev->getZ (), y);
+				drawAxis ('Z', dev->getZ (), ComputeDroLineY (dro_line));
 			}
 			break;
 			}
 
-			y += h;
+			dro_line++;
 		}
 	}
-	else
-	{
-		y += 3 * h;
+
+	{ // Draw machine coordinates
+		u8g2.setFont (kMachFont);
+
+		auto mach_line = int{};
+
+		static auto constexpr DrawMachAxis = [] (auto&& i_value,
+		                                         auto&& i_line_y) {
+			char str[ 20 ]{};
+
+			snprintf (str, sizeof (str), "\t%*8.3f", 8, i_value);
+			Display::u8g2.drawStr (1, i_line_y, str);
+		};
+
+		for (auto&& item : active_dro_items_)
+		{
+			switch (item)
+			{
+			default: {
+				continue;
+			}
+			break;
+
+			case 'X': {
+				DrawMachAxis (
+				    dev->getX () + dev->getXOfs (),
+				    ComputeMachLineY (mach_line));
+			}
+			break;
+
+			case 'Y': {
+				DrawMachAxis (
+				    dev->getY () + dev->getYOfs (),
+				    ComputeMachLineY (mach_line));
+			}
+			break;
+
+			case 'Z': {
+				DrawMachAxis (
+				    dev->getZ () + dev->getZOfs (),
+				    ComputeMachLineY (mach_line));
+			}
+			break;
+			}
+
+			mach_line++;
+		}
 	}
 
-	u8g2.drawHLine (0, y - 1, u8g2.getWidth ());
+	auto const bottom_y =
+	    kTopY + active_dro_items_.size () * (kDroLineHeight + kMachLineHeight);
+
+	u8g2.drawHLine (0, bottom_y - 1, u8g2.getWidth ());
 
 	u8g2.setFont (u8g2_font_5x8_tr);
 
-	snprintf (str, LEN, "F%4d S%4d", dev->getFeed (), dev->getSpindleVal ());
-	u8g2.drawStr (0, y, str);
-	y += 7;
+	const int LEN = 20;
+	char      str[ LEN ];
 
-	float       m    = distVal (cDist);
+	snprintf (str, LEN, "F%4d S%4d", dev->getFeed (), dev->getSpindleVal ());
+	u8g2.drawStr (0, bottom_y, str);
+
+	float dist = distVal (cDist);
+
+	snprintf (
+	    str, LEN, "%c x %.1f", active_dro_items_[ selected_dro_item_ ], dist);
+
+	u8g2.drawStr (0, bottom_y + 7, str);
+
 	const char* stat = dev->isInPanic () ? dev->getLastResponse ().c_str ()
 	                                     : dev->getStatus ().c_str ();
 
-	snprintf (
-	    str,
-	    LEN,
-	    m < 1 ? "%c x%.1f %s" : "%c x%.0f %s",
-	    active_dro_items_[ selected_dro_item_ ],
-	    m,
-	    stat);
-	u8g2.drawStr (0, y, str);
+	u8g2.drawStr (0, bottom_y + 14, stat);
 };
 
 
