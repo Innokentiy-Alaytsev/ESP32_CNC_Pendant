@@ -193,7 +193,7 @@ protected:
 
 			if (auto const device = GCodeDevice::getDevice ())
 			{
-				UpdateToolOffsets (active_tool_, device);
+				UpdateToolOffsets (prev_tool, active_tool_, device);
 			}
 
 			setDirty ();
@@ -266,13 +266,14 @@ private:
 
 
 	void UpdateToolOffsets (
+	    int const i_prev_tool,
 	    int const i_current_tool, GCodeDevice* const o_device)
 	{
 		assert (nullptr != o_device);
 
 		o_device->scheduleCommand ("G92.1");
 
-		if (kNoToolId == i_current_tool)
+		if ((kNoToolId == i_current_tool) || (i_prev_tool == i_current_tool))
 		{
 			return;
 		}
@@ -284,9 +285,23 @@ private:
 		auto const current_position = CoordinateOffsets{
 		    o_device->getX (), o_device->getY (), o_device->getZ ()};
 
-		SendG92Offsets (
-		    current_position + base_offsets_ + tools_[ i_current_tool ].offsets,
-		    o_device);
+		/*
+		  Device coordinates won't be updated untill the next iteration so
+		  manual tool change processing is required. Otherwise, simply setting
+		  the new offsets would suffice.
+		*/
+		if (kNoToolId == i_prev_tool) {
+			SendG92Offsets (
+				current_position + base_offsets_ + tools_.at( i_current_tool ).offsets,
+				o_device);
+		}
+		else {
+			SendG92Offsets (
+				current_position +
+				tools_.at( i_current_tool ).offsets -
+				tools_.at(i_prev_tool).offsets,
+				o_device);
+		}
 	}
 
 	int selected_line_{0};
