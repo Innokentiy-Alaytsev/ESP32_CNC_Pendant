@@ -101,7 +101,7 @@ void GrblDRO::begin ()
 
 	DRO::begin ();
 
-	etl::flat_map< char, AddMenuItemFunction, kMenuItemCountMax >
+	static etl::flat_map< char, AddMenuItemFunction, kMenuItemCountMax > const
 	    menu_item_factory = {
 	        {'T',
 	         [] (char i_glyph, GrblDRO&, int16_t& io_id) {
@@ -183,7 +183,7 @@ void GrblDRO::begin ()
 	{
 		assert (menu_item_factory.count (key));
 
-		menuItems.push_back (menu_item_factory[ key ](key, *this, id));
+		menuItems.push_back (menu_item_factory.at (key) (key, *this, id));
 	}
 };
 
