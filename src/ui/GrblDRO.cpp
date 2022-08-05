@@ -109,7 +109,9 @@ void GrblDRO::begin ()
 			         Job* job = Job::getJob ();
 
 			         if (job && job->isRunning ())
+			         {
 				         return;
+			         }
 
 			         Display::getDisplay ()->setScreen (&tool_table);
 		         });
@@ -125,10 +127,16 @@ void GrblDRO::begin ()
 		         return MenuItem::simpleItem (
 		             io_id++, i_glyph, [ &dro = io_dro ] (MenuItem& m) {
 			             Job* job = Job::getJob ();
+
 			             if (!job->isRunning ())
+			             {
 				             return;
+			             }
+
 			             job->setPaused (!job->isPaused ());
+
 			             m.glyph = job->isPaused () ? 'r' : 'p';
+
 			             dro.setDirty (true);
 		             });
 	         }},
@@ -143,7 +151,9 @@ void GrblDRO::begin ()
 		         return MenuItem::simpleItem (
 		             io_id++, i_glyph, [ &dro = io_dro ] (MenuItem& m) {
 			             dro.enableRefresh (!dro.isRefreshEnabled ());
+
 			             m.glyph = dro.isRefreshEnabled () ? 'u' : 'U';
+
 			             dro.setDirty (true);
 		             });
 	         }},
@@ -159,6 +169,7 @@ void GrblDRO::begin ()
 		             io_id++, i_glyph, [ &dro = io_dro ] (MenuItem&) {
 			             GCodeDevice::getDevice ()->scheduleCommand (
 			                 dro.wco_offset_cmd_);
+
 			             GCodeDevice::getDevice ()->scheduleCommand ("G54");
 		             });
 	         }},
@@ -208,6 +219,12 @@ void GrblDRO::drawContents ()
 
 	static auto constexpr kTopY = Display::STATUS_BAR_HEIGHT + 2;
 
+	static auto const kStatsLine =
+	    kTopY + 3 * (kDroLineHeight + kMachLineHeight);
+
+	static auto const kStatusLineY =
+	    Display::u8g2.getHeight () - 2 * kMachLineHeight;
+
 
 	static auto constexpr ComputeDroLineY = [] (auto&& i_line) {
 		return kTopY + kMachLineHeight * (i_line + 1) + kDroLineHeight * i_line;
@@ -222,7 +239,7 @@ void GrblDRO::drawContents ()
 
 	GrblDevice* dev = static_cast< GrblDevice* > (GCodeDevice::getDevice ());
 
-	if (dev == nullptr)
+	if (nullptr == dev)
 	{
 		return;
 	}
@@ -293,6 +310,7 @@ void GrblDRO::drawContents ()
 			char str[ 20 ]{};
 
 			snprintf (str, sizeof (str), "\t%*8.3f", 8, i_value);
+
 			Display::u8g2.drawStr (1, i_line_y, str);
 		};
 
@@ -334,7 +352,7 @@ void GrblDRO::drawContents ()
 	auto const bottom_y =
 	    kTopY + active_dro_items_.size () * (kDroLineHeight + kMachLineHeight);
 
-	u8g2.drawHLine (0, bottom_y - 1, u8g2.getWidth ());
+	u8g2.drawHLine (0, kStatsLine - 1, u8g2.getWidth ());
 
 	u8g2.setFont (u8g2_font_5x8_tr);
 
@@ -342,7 +360,7 @@ void GrblDRO::drawContents ()
 	char      str[ LEN ];
 
 	snprintf (str, LEN, "F%4d S%4d", dev->getFeed (), dev->getSpindleVal ());
-	u8g2.drawStr (0, bottom_y, str);
+	u8g2.drawStr (0, kStatsLine, str);
 
 	float dist = distVal (cDist);
 
@@ -354,7 +372,7 @@ void GrblDRO::drawContents ()
 	const char* stat = dev->isInPanic () ? dev->getLastResponse ().c_str ()
 	                                     : dev->getStatus ().c_str ();
 
-	u8g2.drawStr (0, bottom_y + 14, stat);
+	u8g2.drawStr (0, kStatusLineY, stat);
 };
 
 
