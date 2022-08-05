@@ -218,10 +218,13 @@ void deviceLoop (void* pvParams)
 
 		grbl_dro->ApplyConfig (grbl_dro_config.as< JsonObjectConst > ());
 
+		dev->add_observer (*grbl_dro);
+
 		dro = grbl_dro;
 	}
 	else
 		dro = new (droBuffer) DRO ();
+
 	dro->begin ();
 
 	display.setScreen (dro);

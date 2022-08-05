@@ -104,17 +104,20 @@ void GrblDRO::begin ()
 	static etl::flat_map< char, AddMenuItemFunction, kMenuItemCountMax > const
 	    menu_item_factory = {
 	        {'T',
-	         [] (char i_glyph, GrblDRO&, int16_t& io_id) {
-		         return MenuItem::simpleItem (io_id++, i_glyph, [] (MenuItem&) {
-			         Job* job = Job::getJob ();
+	         [] (char i_glyph, GrblDRO& io_dro, int16_t& io_id) {
+		         return MenuItem::simpleItem (
+		             io_id++, i_glyph, [ &dro = io_dro ] (MenuItem&) {
+			             Job* job = Job::getJob ();
 
-			         if (job && job->isRunning ())
-			         {
-				         return;
-			         }
+			             if (job && job->isRunning ())
+			             {
+				             return;
+			             }
 
-			         Display::getDisplay ()->setScreen (&tool_table);
-		         });
+			             dro.tool_changed_ = true;
+
+			             Display::getDisplay ()->setScreen (&tool_table);
+		             });
 	         }},
 	        {'o',
 	         [] (char i_glyph, GrblDRO&, int16_t& io_id) {
@@ -199,6 +202,37 @@ void GrblDRO::begin ()
 };
 
 
+void GrblDRO::notification (const DeviceStatusEvent& i_event)
+{
+	GrblDevice* dev = static_cast< GrblDevice* > (GCodeDevice::getDevice ());
+
+	if (nullptr == dev)
+	{
+		return;
+	}
+
+	auto const can_jog = dev->canJog ();
+
+	if (tool_changed_ || (can_jog != last_can_jog_state_))
+	{
+		last_can_jog_state_ = can_jog;
+
+		if (tool_changed_ || can_jog)
+		{
+			tool_changed_ = false;
+
+			target_work_position_ =
+			    Vector3f{dev->getX (), dev->getY (), dev->getZ ()};
+
+			target_mach_position_ = Vector3f{
+			    target_work_position_.x + dev->getXOfs (),
+			    target_work_position_.y + dev->getYOfs (),
+			    target_work_position_.z + dev->getZOfs ()};
+		}
+	}
+}
+
+
 void GrblDRO::drawContents ()
 {
 	static auto constexpr ComputeLineHeight = [] (auto&& i_font,
@@ -244,6 +278,18 @@ void GrblDRO::drawContents ()
 		return;
 	}
 
+	auto const can_jog = dev->canJog ();
+
+	auto const work_coordinates = can_jog
+	    ? target_work_position_
+	    : Vector3f{dev->getX (), dev->getY (), dev->getZ ()};
+
+	auto const mach_coordinates = can_jog ? target_mach_position_
+	                                      : Vector3f{
+	                                            dev->getX () + dev->getXOfs (),
+	                                            dev->getY () + dev->getYOfs (),
+	                                            dev->getZ () + dev->getZOfs ()};
+
 	U8G2& u8g2 = Display::u8g2;
 
 	{ // Draw DRO coordinates
@@ -251,7 +297,7 @@ void GrblDRO::drawContents ()
 
 		u8g2.setDrawColor (1);
 
-		if (dev->canJog ())
+		if (can_jog)
 		{
 			u8g2.drawBox (
 			    0, ComputeDroLineY (selected_dro_item_), 8, kDroLineHeight);
@@ -266,35 +312,10 @@ void GrblDRO::drawContents ()
 
 		auto dro_line = int{};
 
-		/*
-		  Not using a map this time since the DRO items are few in number and
-		  are repeated (with and without offsets). Another reason is that items
-		  would have to be stored in GrblDRO object permanently.
-		*/
 		for (auto&& item : active_dro_items_)
 		{
-			switch (item)
-			{
-			default: {
-				continue;
-			}
-			break;
-
-			case 'X': {
-				drawAxis ('X', dev->getX (), ComputeDroLineY (dro_line));
-			}
-			break;
-
-			case 'Y': {
-				drawAxis ('Y', dev->getY (), ComputeDroLineY (dro_line));
-			}
-			break;
-
-			case 'Z': {
-				drawAxis ('Z', dev->getZ (), ComputeDroLineY (dro_line));
-			}
-			break;
-			}
+			drawAxis (
+			    item, work_coordinates[ item ], ComputeDroLineY (dro_line));
 
 			dro_line++;
 		}
@@ -316,34 +337,8 @@ void GrblDRO::drawContents ()
 
 		for (auto&& item : active_dro_items_)
 		{
-			switch (item)
-			{
-			default: {
-				continue;
-			}
-			break;
-
-			case 'X': {
-				DrawMachAxis (
-				    dev->getX () + dev->getXOfs (),
-				    ComputeMachLineY (mach_line));
-			}
-			break;
-
-			case 'Y': {
-				DrawMachAxis (
-				    dev->getY () + dev->getYOfs (),
-				    ComputeMachLineY (mach_line));
-			}
-			break;
-
-			case 'Z': {
-				DrawMachAxis (
-				    dev->getZ () + dev->getZOfs (),
-				    ComputeMachLineY (mach_line));
-			}
-			break;
-			}
+			DrawMachAxis (
+			    mach_coordinates[ item ], ComputeMachLineY (mach_line));
 
 			mach_line++;
 		}
@@ -374,6 +369,46 @@ void GrblDRO::drawContents ()
 
 	u8g2.drawStr (0, kStatusLineY, stat);
 };
+
+
+void GrblDRO::onButtonPressed (Button i_button, int8_t i_arg)
+{
+	GCodeDevice* dev = GCodeDevice::getDevice ();
+
+	if ((nullptr == dev) || !dev->canJog () ||
+	    !((Button::ENC_UP == i_button) || (Button::ENC_DOWN == i_button)))
+	{
+		return;
+	}
+
+	auto const current_time = millis ();
+	auto const jog_distance = distVal (cDist) * i_arg;
+	auto const jog_axis     = active_dro_items_[ selected_dro_item_ ];
+
+	auto feed = float{};
+
+	if (lastJogTime != 0)
+	{
+		feed = jog_distance / (current_time - lastJogTime) * 1000 * 60;
+	};
+
+	if (feed < 500)
+	{
+		feed = 500;
+	}
+
+	target_mach_position_[ jog_axis ] += jog_distance;
+	target_work_position_[ jog_axis ] += jog_distance;
+
+	lastJogTime = current_time;
+
+	if (!dev->jog (cAxis, jog_distance, static_cast< int > (feed)))
+	{
+		S_DEBUGF ("Could not schedule jog\n");
+	}
+
+	setDirty ();
+}
 
 
 void GrblDRO::onPotValueChanged (int i_pot, int i_value)
