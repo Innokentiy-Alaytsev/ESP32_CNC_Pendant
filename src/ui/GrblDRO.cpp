@@ -70,28 +70,21 @@ namespace {
 
 void GrblDRO::ApplyConfig (JsonObjectConst i_config) noexcept
 {
-	if (i_config.isNull ())
-	{
-		return;
-	}
-
 	if (auto const wco_offset_cmd_conf = i_config[ "wco_offset_cmd" ];
 	    !wco_offset_cmd_conf.isNull ())
 	{
 		wco_offset_cmd_ = wco_offset_cmd_conf.as< String > ();
 	}
 
-	if (auto const menu_conf = i_config[ "menu" ].as< JsonObjectConst > ();
-	    !menu_conf.isNull ())
-	{
-		LoadItemsSettings (menu_conf, kDefaultMenuItems, active_menu_items_);
-	}
+	LoadItemsSettings (
+	    i_config[ "menu" ].as< JsonObjectConst > (),
+	    kDefaultMenuItems,
+	    active_menu_items_);
 
-	if (auto const dro_conf = i_config[ "DRO" ].as< JsonObjectConst > ();
-	    !dro_conf.isNull ())
-	{
-		LoadItemsSettings (dro_conf, kDefaultDroItems, active_dro_items_);
-	}
+	LoadItemsSettings (
+	    i_config[ "DRO" ].as< JsonObjectConst > (),
+	    kDefaultDroItems,
+	    active_dro_items_);
 }
 
 
