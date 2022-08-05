@@ -266,8 +266,9 @@ private:
 
 
 	void UpdateToolOffsets (
-	    int const i_prev_tool,
-	    int const i_current_tool, GCodeDevice* const o_device)
+	    int const          i_prev_tool,
+	    int const          i_current_tool,
+	    GCodeDevice* const o_device)
 	{
 		assert (nullptr != o_device);
 
@@ -290,17 +291,19 @@ private:
 		  manual tool change processing is required. Otherwise, simply setting
 		  the new offsets would suffice.
 		*/
-		if (kNoToolId == i_prev_tool) {
+		if (kNoToolId == i_prev_tool)
+		{
 			SendG92Offsets (
-				current_position + base_offsets_ + tools_.at( i_current_tool ).offsets,
-				o_device);
+			    current_position + base_offsets_ +
+			        tools_.at (i_current_tool).offsets,
+			    o_device);
 		}
-		else {
+		else
+		{
 			SendG92Offsets (
-				current_position +
-				tools_.at( i_current_tool ).offsets -
-				tools_.at(i_prev_tool).offsets,
-				o_device);
+			    current_position + tools_.at (i_current_tool).offsets -
+			        tools_.at (i_prev_tool).offsets,
+			    o_device);
 		}
 	}
 
