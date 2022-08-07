@@ -300,12 +300,12 @@ void GrblDRO::drawContents ()
 		if (can_jog)
 		{
 			u8g2.drawBox (
-			    0, ComputeDroLineY (selected_dro_item_), 8, kDroLineHeight);
+			    0, ComputeDroLineY (selected_dro_item_) - 1, 8, kDroLineHeight);
 		}
 		else
 		{
 			u8g2.drawFrame (
-			    0, ComputeDroLineY (selected_dro_item_), 8, kDroLineHeight);
+			    0, ComputeDroLineY (selected_dro_item_) - 1, 8, kDroLineHeight);
 		}
 
 		u8g2.setDrawColor (2);
