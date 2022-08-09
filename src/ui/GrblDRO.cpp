@@ -1,7 +1,10 @@
 #include "GrblDRO.h"
 
 
+#include <math.h>
+
 #include <etl/algorithm.h>
+#include <etl/array.h>
 #include <etl/flat_map.h>
 #include <etl/type_traits.h>
 
@@ -9,10 +12,69 @@
 #include "FileChooser.h"
 #include "ui/ToolTable.hpp"
 
+
 extern FileChooser fileChooser;
 extern ToolTable<> tool_table;
 
+
 namespace {
+	template < class TRange >
+	struct ReverseAdaptor {
+		explicit ReverseAdaptor (TRange& i_range)
+		    : range_{i_range}
+		{
+		}
+
+
+		auto begin ()
+		{
+			return range_.rbegin ();
+		}
+
+
+		auto end ()
+		{
+			return range_.rend ();
+		}
+
+
+	private:
+		TRange& range_;
+	};
+
+
+	template < class TComponentType >
+	constexpr etl::array< Vector2< TComponentType >, 3 > ComputeRadialOffsets (
+	    TComponentType const i_radius, int const i_quadrant)
+	{
+		using VectorType = Vector2< TComponentType >;
+
+		VectorType constexpr kQuadrantSigns[] = {
+		    {1, 1}, {-1, 1}, {-1, -1}, {1, -1}};
+
+		if (0 == i_quadrant)
+		{
+			return {};
+		}
+
+		auto const mid_point =
+		    static_cast< TComponentType > (sin (M_PI_4) * i_radius);
+
+		auto const quadrant_is_negative = signbit (i_quadrant);
+
+		auto const quadrant_index = abs (i_quadrant) % 5;
+
+		auto const sign = kQuadrantSigns
+		    [ quadrant_is_negative ? (4 - quadrant_index)
+		                           : (quadrant_index - 1) ];
+
+		return {
+		    sign * VectorType{i_radius, 0},
+		    sign * VectorType{mid_point, mid_point},
+		    sign * VectorType{0, i_radius}};
+	}
+
+
 	template < class TContainer, class TValue >
 	constexpr bool Contains (TContainer&& i_container, TValue&& i_value)
 	{
@@ -65,6 +127,122 @@ namespace {
 			}
 		}
 	};
+
+
+	template < class TRange >
+	auto Reverse (TRange& i_range)
+	{
+		return ReverseAdaptor< TRange >{i_range};
+	}
+
+
+	static auto constexpr ComputeLineHeight = [] (auto&& i_font,
+	                                              auto&& io_u8g2) {
+		io_u8g2.setFont (i_font);
+
+		return io_u8g2.getAscent () - io_u8g2.getDescent () + 2;
+	};
+
+
+	static auto constexpr GetMaxCharWidth = [] (auto&& i_font, auto&& io_u8g2) {
+		io_u8g2.setFont (i_font);
+
+		return io_u8g2.getMaxCharWidth ();
+	};
+
+
+	template <
+	    int  KOptionsArcRadius,
+	    int  KOptionsArcQuadrant,
+	    bool KClockWise,
+	    class TOptions >
+	void DrawOptionSelection (
+	    Vector2i const& i_options_arc_center,
+	    TOptions&&      i_options,
+	    size_t          i_selected_option_index,
+	    U8G2&           io_u8g2) noexcept
+	{
+		static constexpr auto& kOptionFont = u8g2_font_4x6_tr;
+
+		static decltype (U8G2_DRAW_ALL) constexpr kQuadrantArcOptions[] = {
+		    U8G2_DRAW_UPPER_RIGHT,
+		    U8G2_DRAW_UPPER_LEFT,
+		    U8G2_DRAW_LOWER_LEFT,
+		    U8G2_DRAW_LOWER_RIGHT};
+
+		static auto const kOptionLineHeight =
+		    ComputeLineHeight (kOptionFont, io_u8g2);
+		static auto const kOptionMaxCharWidth =
+		    GetMaxCharWidth (kOptionFont, io_u8g2);
+
+		static auto const kOptionArcRadius     = KOptionsArcRadius;
+		static auto const kOptionMarkArcRadius = KOptionsArcRadius - 6;
+
+		static auto constexpr kOptionMarkRadius = 2;
+
+		static auto const kOptionRadialOffsets =
+		    ComputeRadialOffsets (kOptionArcRadius, -KOptionsArcQuadrant);
+		static auto const kOptionMarkRadialOffsets =
+		    ComputeRadialOffsets (kOptionMarkArcRadius, -KOptionsArcQuadrant);
+
+		static auto const kOptionFontOffset =
+		    Vector2i{-kOptionMaxCharWidth / 2, -kOptionLineHeight / 2};
+
+		io_u8g2.setFont (kOptionFont);
+		io_u8g2.setDrawColor (1);
+
+		io_u8g2.drawCircle (i_options_arc_center.x, i_options_arc_center.y, 3);
+
+		io_u8g2.drawCircle (
+		    i_options_arc_center.x,
+		    i_options_arc_center.y,
+		    kOptionMarkArcRadius - kOptionMarkRadius,
+		    kQuadrantArcOptions[ KOptionsArcQuadrant - 1 ]);
+
+		io_u8g2.drawDisc (i_options_arc_center.x, i_options_arc_center.y, 1);
+
+
+		auto const DrawOptions = [ i_options_arc_center,
+		                           i_selected_option_index ] (
+		                             auto&& i_options, auto&& io_u8g2) {
+			auto option_idx = size_t{};
+
+			for (auto&& option : i_options)
+			{
+				auto const offset_idx = KClockWise
+				    ? option_idx
+				    : (kOptionRadialOffsets.size () - 1 - option_idx);
+				auto const option_pos =
+				    i_options_arc_center + kOptionRadialOffsets[ offset_idx ];
+
+				io_u8g2.setCursor (
+				    option_pos.x + kOptionFontOffset.x,
+				    option_pos.y + kOptionFontOffset.y);
+
+				io_u8g2.print (option);
+
+				if (option_idx == i_selected_option_index)
+				{
+					auto const mark_pos = i_options_arc_center +
+					    kOptionMarkRadialOffsets[ offset_idx ];
+
+					io_u8g2.drawDisc (
+					    mark_pos.x, mark_pos.y, kOptionMarkRadius);
+				}
+
+				option_idx++;
+			}
+		};
+
+		if constexpr (KClockWise)
+		{
+			DrawOptions (i_options, io_u8g2);
+		}
+		else
+		{
+			DrawOptions (Reverse (i_options), io_u8g2);
+		}
+	};
 } // namespace
 
 
@@ -97,15 +275,20 @@ void GrblDRO::begin ()
 	static etl::flat_map< char, AddMenuItemFunction, kMenuItemCountMax > const
 	    menu_item_factory = {
 	        {'T',
-	         [] (char i_glyph, GrblDRO&, int16_t& io_id) {
-		         return MenuItem::simpleItem (io_id++, i_glyph, [] (MenuItem&) {
-			         Job* job = Job::getJob ();
+	         [] (char i_glyph, GrblDRO& io_dro, int16_t& io_id) {
+		         return MenuItem::simpleItem (
+		             io_id++, i_glyph, [ &dro = io_dro ] (MenuItem&) {
+			             Job* job = Job::getJob ();
 
-			         if (job && job->isRunning ())
-				         return;
+			             if (job && job->isRunning ())
+			             {
+				             return;
+			             }
 
-			         Display::getDisplay ()->setScreen (&tool_table);
-		         });
+			             dro.tool_changed_ = true;
+
+			             Display::getDisplay ()->setScreen (&tool_table);
+		             });
 	         }},
 	        {'o',
 	         [] (char i_glyph, GrblDRO&, int16_t& io_id) {
@@ -118,10 +301,16 @@ void GrblDRO::begin ()
 		         return MenuItem::simpleItem (
 		             io_id++, i_glyph, [ &dro = io_dro ] (MenuItem& m) {
 			             Job* job = Job::getJob ();
+
 			             if (!job->isRunning ())
+			             {
 				             return;
+			             }
+
 			             job->setPaused (!job->isPaused ());
+
 			             m.glyph = job->isPaused () ? 'r' : 'p';
+
 			             dro.setDirty (true);
 		             });
 	         }},
@@ -136,7 +325,9 @@ void GrblDRO::begin ()
 		         return MenuItem::simpleItem (
 		             io_id++, i_glyph, [ &dro = io_dro ] (MenuItem& m) {
 			             dro.enableRefresh (!dro.isRefreshEnabled ());
+
 			             m.glyph = dro.isRefreshEnabled () ? 'u' : 'U';
+
 			             dro.setDirty (true);
 		             });
 	         }},
@@ -152,6 +343,7 @@ void GrblDRO::begin ()
 		             io_id++, i_glyph, [ &dro = io_dro ] (MenuItem&) {
 			             GCodeDevice::getDevice ()->scheduleCommand (
 			                 dro.wco_offset_cmd_);
+
 			             GCodeDevice::getDevice ()->scheduleCommand ("G54");
 		             });
 	         }},
@@ -181,25 +373,54 @@ void GrblDRO::begin ()
 };
 
 
+void GrblDRO::notification (const DeviceStatusEvent& i_event)
+{
+	GrblDevice* dev = static_cast< GrblDevice* > (GCodeDevice::getDevice ());
+
+	if (nullptr == dev)
+	{
+		return;
+	}
+
+	auto const can_jog = dev->canJog ();
+
+	if (tool_changed_ || (can_jog != last_can_jog_state_))
+	{
+		last_can_jog_state_ = can_jog;
+
+		if (tool_changed_ || can_jog)
+		{
+			tool_changed_ = false;
+
+			target_work_position_ =
+			    Vector3f{dev->getX (), dev->getY (), dev->getZ ()};
+
+			target_mach_position_ = Vector3f{
+			    target_work_position_.x + dev->getXOfs (),
+			    target_work_position_.y + dev->getYOfs (),
+			    target_work_position_.z + dev->getZOfs ()};
+		}
+	}
+}
+
+
 void GrblDRO::drawContents ()
 {
-	static auto constexpr ComputeLineHeight = [] (auto&& i_font,
-	                                              auto&& io_u8g2) {
-		io_u8g2.setFont (i_font);
-
-		return io_u8g2.getAscent () - io_u8g2.getDescent () + 2;
-	};
-
-
 	static constexpr auto& kDroFont  = u8g2_font_7x13B_tr;
-	static constexpr auto& kMachFont = u8g2_font_5x8_tr;
+	static constexpr auto& kMachFont = u8g2_font_5x7_tr;
 
 	static auto const kDroLineHeight =
 	    ComputeLineHeight (kDroFont, Display::u8g2);
 	static auto const kMachLineHeight =
 	    ComputeLineHeight (kMachFont, Display::u8g2);
 
-	static auto constexpr kTopY = Display::STATUS_BAR_HEIGHT + 2;
+	static auto constexpr kTopY = Display::STATUS_BAR_HEIGHT + 1;
+
+	static auto const kStatsLine =
+	    kTopY + 3 * (kDroLineHeight + kMachLineHeight);
+
+	static auto const kStatusLineY =
+	    Display::u8g2.getHeight () - 2 * kMachLineHeight;
 
 
 	static auto constexpr ComputeDroLineY = [] (auto&& i_line) {
@@ -215,10 +436,22 @@ void GrblDRO::drawContents ()
 
 	GrblDevice* dev = static_cast< GrblDevice* > (GCodeDevice::getDevice ());
 
-	if (dev == nullptr)
+	if (nullptr == dev)
 	{
 		return;
 	}
+
+	auto const can_jog = dev->canJog ();
+
+	auto const work_coordinates = can_jog
+	    ? target_work_position_
+	    : Vector3f{dev->getX (), dev->getY (), dev->getZ ()};
+
+	auto const mach_coordinates = can_jog ? target_mach_position_
+	                                      : Vector3f{
+	                                            dev->getX () + dev->getXOfs (),
+	                                            dev->getY () + dev->getYOfs (),
+	                                            dev->getZ () + dev->getZOfs ()};
 
 	U8G2& u8g2 = Display::u8g2;
 
@@ -227,50 +460,25 @@ void GrblDRO::drawContents ()
 
 		u8g2.setDrawColor (1);
 
-		if (dev->canJog ())
+		if (can_jog)
 		{
 			u8g2.drawBox (
-			    0, ComputeDroLineY (selected_dro_item_), 8, kDroLineHeight);
+			    0, ComputeDroLineY (selected_dro_item_) - 1, 8, kDroLineHeight);
 		}
 		else
 		{
 			u8g2.drawFrame (
-			    0, ComputeDroLineY (selected_dro_item_), 8, kDroLineHeight);
+			    0, ComputeDroLineY (selected_dro_item_) - 1, 8, kDroLineHeight);
 		}
 
 		u8g2.setDrawColor (2);
 
 		auto dro_line = int{};
 
-		/*
-		  Not using a map this time since the DRO items are few in number and
-		  are repeated (with and without offsets). Another reason is that items
-		  would have to be stored in GrblDRO object permanently.
-		*/
 		for (auto&& item : active_dro_items_)
 		{
-			switch (item)
-			{
-			default: {
-				continue;
-			}
-			break;
-
-			case 'X': {
-				drawAxis ('X', dev->getX (), ComputeDroLineY (dro_line));
-			}
-			break;
-
-			case 'Y': {
-				drawAxis ('Y', dev->getY (), ComputeDroLineY (dro_line));
-			}
-			break;
-
-			case 'Z': {
-				drawAxis ('Z', dev->getZ (), ComputeDroLineY (dro_line));
-			}
-			break;
-			}
+			drawAxis (
+			    item, work_coordinates[ item ], ComputeDroLineY (dro_line));
 
 			dro_line++;
 		}
@@ -286,48 +494,20 @@ void GrblDRO::drawContents ()
 			char str[ 20 ]{};
 
 			snprintf (str, sizeof (str), "\t%*8.3f", 8, i_value);
+
 			Display::u8g2.drawStr (1, i_line_y, str);
 		};
 
 		for (auto&& item : active_dro_items_)
 		{
-			switch (item)
-			{
-			default: {
-				continue;
-			}
-			break;
-
-			case 'X': {
-				DrawMachAxis (
-				    dev->getX () + dev->getXOfs (),
-				    ComputeMachLineY (mach_line));
-			}
-			break;
-
-			case 'Y': {
-				DrawMachAxis (
-				    dev->getY () + dev->getYOfs (),
-				    ComputeMachLineY (mach_line));
-			}
-			break;
-
-			case 'Z': {
-				DrawMachAxis (
-				    dev->getZ () + dev->getZOfs (),
-				    ComputeMachLineY (mach_line));
-			}
-			break;
-			}
+			DrawMachAxis (
+			    mach_coordinates[ item ], ComputeMachLineY (mach_line));
 
 			mach_line++;
 		}
 	}
 
-	auto const bottom_y =
-	    kTopY + active_dro_items_.size () * (kDroLineHeight + kMachLineHeight);
-
-	u8g2.drawHLine (0, bottom_y - 1, u8g2.getWidth ());
+	u8g2.drawHLine (0, kStatsLine - 1, u8g2.getWidth ());
 
 	u8g2.setFont (u8g2_font_5x8_tr);
 
@@ -335,20 +515,75 @@ void GrblDRO::drawContents ()
 	char      str[ LEN ];
 
 	snprintf (str, LEN, "F%4d S%4d", dev->getFeed (), dev->getSpindleVal ());
-	u8g2.drawStr (0, bottom_y, str);
+	u8g2.drawStr (0, kStatsLine, str);
 
-	float dist = distVal (cDist);
+	{ // Draw options selection
+		static auto constexpr kOptionArcRadius = 18;
 
-	snprintf (
-	    str, LEN, "%c x %.1f", active_dro_items_[ selected_dro_item_ ], dist);
+		static auto const kOptionsBottom =
+		    kStatsLine + kOptionArcRadius + kMachLineHeight + 4;
 
-	u8g2.drawStr (0, bottom_y + 7, str);
+		static auto const kJogDistances =
+		    etl::array< float, 3 >{distVal (0), distVal (1), distVal (2)};
+
+		DrawOptionSelection< kOptionArcRadius, 2, true > (
+		    Vector2i{u8g2.getWidth () / 2 - 10, kOptionsBottom},
+		    active_dro_items_,
+		    selected_dro_item_,
+		    u8g2);
+
+		DrawOptionSelection< kOptionArcRadius, 1, false > (
+		    Vector2i{u8g2.getWidth () / 2, kOptionsBottom},
+		    kJogDistances,
+		    cDist,
+		    u8g2);
+	}
 
 	const char* stat = dev->isInPanic () ? dev->getLastResponse ().c_str ()
 	                                     : dev->getStatus ().c_str ();
 
-	u8g2.drawStr (0, bottom_y + 14, stat);
+	u8g2.drawStr (0, kStatusLineY, stat);
 };
+
+
+void GrblDRO::onButtonPressed (Button i_button, int8_t i_arg)
+{
+	GCodeDevice* dev = GCodeDevice::getDevice ();
+
+	if ((nullptr == dev) || !dev->canJog () ||
+	    !((Button::ENC_UP == i_button) || (Button::ENC_DOWN == i_button)))
+	{
+		return;
+	}
+
+	auto const current_time = millis ();
+	auto const jog_distance = distVal (cDist) * i_arg;
+	auto const jog_axis     = active_dro_items_[ selected_dro_item_ ];
+
+	auto feed = float{};
+
+	if (lastJogTime != 0)
+	{
+		feed = jog_distance / (current_time - lastJogTime) * 1000 * 60;
+	};
+
+	if (feed < 500)
+	{
+		feed = 500;
+	}
+
+	target_mach_position_[ jog_axis ] += jog_distance;
+	target_work_position_[ jog_axis ] += jog_distance;
+
+	lastJogTime = current_time;
+
+	if (!dev->jog (cAxis, jog_distance, static_cast< int > (feed)))
+	{
+		S_DEBUGF ("Could not schedule jog\n");
+	}
+
+	setDirty ();
+}
 
 
 void GrblDRO::onPotValueChanged (int i_pot, int i_value)
