@@ -18,31 +18,6 @@ extern ToolTable<> tool_table;
 
 
 namespace {
-	template < class TRange >
-	struct ReverseAdaptor {
-		explicit ReverseAdaptor (TRange& i_range)
-		    : range_{i_range}
-		{
-		}
-
-
-		auto begin ()
-		{
-			return range_.rbegin ();
-		}
-
-
-		auto end ()
-		{
-			return range_.rend ();
-		}
-
-
-	private:
-		TRange& range_;
-	};
-
-
 	template < class TComponentType >
 	constexpr etl::array< Vector2< TComponentType >, 3 > ComputeRadialOffsets (
 	    TComponentType const i_radius, int const i_quadrant)
@@ -129,13 +104,6 @@ namespace {
 	};
 
 
-	template < class TRange >
-	auto Reverse (TRange& i_range)
-	{
-		return ReverseAdaptor< TRange >{i_range};
-	}
-
-
 	static auto constexpr ComputeLineHeight = [] (auto&& i_font,
 	                                              auto&& io_u8g2) {
 		io_u8g2.setFont (i_font);
@@ -201,46 +169,31 @@ namespace {
 
 		io_u8g2.drawDisc (i_options_arc_center.x, i_options_arc_center.y, 1);
 
+		auto option_idx = size_t{};
 
-		auto const DrawOptions = [ i_options_arc_center,
-		                           i_selected_option_index ] (
-		                             auto&& i_options, auto&& io_u8g2) {
-			auto option_idx = size_t{};
+		for (auto&& option : i_options)
+		{
+			auto const offset_idx = KClockWise
+			    ? option_idx
+			    : (kOptionRadialOffsets.size () - 1 - option_idx);
+			auto const option_pos =
+			    i_options_arc_center + kOptionRadialOffsets[ offset_idx ];
 
-			for (auto&& option : i_options)
+			io_u8g2.setCursor (
+			    option_pos.x + kOptionFontOffset.x,
+			    option_pos.y + kOptionFontOffset.y);
+
+			io_u8g2.print (option);
+
+			if (option_idx == i_selected_option_index)
 			{
-				auto const offset_idx = KClockWise
-				    ? option_idx
-				    : (kOptionRadialOffsets.size () - 1 - option_idx);
-				auto const option_pos =
-				    i_options_arc_center + kOptionRadialOffsets[ offset_idx ];
+				auto const mark_pos = i_options_arc_center +
+				    kOptionMarkRadialOffsets[ offset_idx ];
 
-				io_u8g2.setCursor (
-				    option_pos.x + kOptionFontOffset.x,
-				    option_pos.y + kOptionFontOffset.y);
-
-				io_u8g2.print (option);
-
-				if (option_idx == i_selected_option_index)
-				{
-					auto const mark_pos = i_options_arc_center +
-					    kOptionMarkRadialOffsets[ offset_idx ];
-
-					io_u8g2.drawDisc (
-					    mark_pos.x, mark_pos.y, kOptionMarkRadius);
-				}
-
-				option_idx++;
+				io_u8g2.drawDisc (mark_pos.x, mark_pos.y, kOptionMarkRadius);
 			}
-		};
 
-		if constexpr (KClockWise)
-		{
-			DrawOptions (i_options, io_u8g2);
-		}
-		else
-		{
-			DrawOptions (Reverse (i_options), io_u8g2);
+			option_idx++;
 		}
 	};
 } // namespace
@@ -254,10 +207,24 @@ void GrblDRO::ApplyConfig (JsonObjectConst i_config) noexcept
 		wco_offset_cmd_ = wco_offset_cmd_conf.as< String > ();
 	}
 
-	LoadItemsSettings (
-	    i_config[ "menu" ].as< JsonObjectConst > (),
-	    kDefaultMenuItems,
-	    active_menu_items_);
+	if (auto const jog_step_values_conf =
+	        i_config[ "jog_step_values" ].as< JsonArrayConst > ();
+	    !jog_step_values_conf.isNull () &&
+	    (3 == jog_step_values_conf.size ()) &&
+	    jog_step_values_conf[ 0 ].is< float > () &&
+	    jog_step_values_conf[ 1 ].is< float > () &&
+	    jog_step_values_conf[ 2 ].is< float > ())
+	{
+		jog_step_values_[ 0 ] = jog_step_values_conf[ 0 ].as< float > ();
+		jog_step_values_[ 1 ] = jog_step_values_conf[ 1 ].as< float > ();
+		jog_step_values_[ 2 ] = jog_step_values_conf[ 2 ].as< float > ();
+	}
+
+	if (auto const menu_conf = i_config[ "menu" ].as< JsonObjectConst > ();
+	    !menu_conf.isNull ())
+	{
+		LoadItemsSettings (menu_conf, kDefaultMenuItems, active_menu_items_);
+	}
 
 	LoadItemsSettings (
 	    i_config[ "DRO" ].as< JsonObjectConst > (),
@@ -343,7 +310,6 @@ void GrblDRO::begin ()
 		             io_id++, i_glyph, [ &dro = io_dro ] (MenuItem&) {
 			             GCodeDevice::getDevice ()->scheduleCommand (
 			                 dro.wco_offset_cmd_);
-
 			             GCodeDevice::getDevice ()->scheduleCommand ("G54");
 		             });
 	         }},
@@ -494,7 +460,6 @@ void GrblDRO::drawContents ()
 			char str[ 20 ]{};
 
 			snprintf (str, sizeof (str), "\t%*8.3f", 8, i_value);
-
 			Display::u8g2.drawStr (1, i_line_y, str);
 		};
 
@@ -523,9 +488,6 @@ void GrblDRO::drawContents ()
 		static auto const kOptionsBottom =
 		    kStatsLine + kOptionArcRadius + kMachLineHeight + 4;
 
-		static auto const kJogDistances =
-		    etl::array< float, 3 >{distVal (0), distVal (1), distVal (2)};
-
 		DrawOptionSelection< kOptionArcRadius, 2, true > (
 		    Vector2i{u8g2.getWidth () / 2 - 10, kOptionsBottom},
 		    active_dro_items_,
@@ -534,7 +496,7 @@ void GrblDRO::drawContents ()
 
 		DrawOptionSelection< kOptionArcRadius, 1, false > (
 		    Vector2i{u8g2.getWidth () / 2, kOptionsBottom},
-		    kJogDistances,
+		    jog_step_values_,
 		    cDist,
 		    u8g2);
 	}
@@ -557,7 +519,7 @@ void GrblDRO::onButtonPressed (Button i_button, int8_t i_arg)
 	}
 
 	auto const current_time = millis ();
-	auto const jog_distance = distVal (cDist) * i_arg;
+	auto const jog_distance = jog_step_values_[ cDist ] * i_arg;
 	auto const jog_axis     = active_dro_items_[ selected_dro_item_ ];
 
 	auto feed = float{};
@@ -590,13 +552,16 @@ void GrblDRO::onPotValueChanged (int i_pot, int i_value)
 {
 	DRO::onPotValueChanged (i_pot, i_value);
 
-	selected_dro_item_ = etl::clamp (
-	    cAxis, 0, static_cast< int > (active_dro_items_.size ()) - 1);
+	if (0 == i_pot)
+	{
+		selected_dro_item_ = etl::clamp (
+		    cAxis, 0, static_cast< int > (active_dro_items_.size ()) - 1);
 
-	cAxis = static_cast< JogAxis > (etl::distance (
-	    kDefaultDroItems.begin (),
-	    etl::find (
-	        kDefaultDroItems.begin (),
-	        kDefaultDroItems.end (),
-	        active_dro_items_[ selected_dro_item_ ])));
+		cAxis = static_cast< JogAxis > (etl::distance (
+		    kDefaultDroItems.begin (),
+		    etl::find (
+		        kDefaultDroItems.begin (),
+		        kDefaultDroItems.end (),
+		        active_dro_items_[ selected_dro_item_ ])));
+	}
 }
