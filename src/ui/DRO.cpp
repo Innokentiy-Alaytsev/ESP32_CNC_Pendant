@@ -1,9 +1,8 @@
 #include "DRO.h"
 
 
-#include <etl/algorithm.h>
-
 #include "../devices/GCodeDevice.h"
+#include "../discrete_switch_potentiometer.hpp"
 
 
 DRO::DRO ()
@@ -89,42 +88,31 @@ struct POT_CFG {
 };
 
 
-static constexpr POT_CFG POTS_CFG[]{{1200, 3, 50}, {1200, 3, 50}};
+static constexpr DiscreteSwitchPotentiometerConfig
+    kPotentiometersConfiguration[]{{1200, 3, 50}, {1200, 3, 50}};
 
 
-void DRO::onPotValueChanged (int pot, int i_adc_value)
+void DRO::onPotValueChanged (int i_potentiometer_index, int i_adc_value)
 {
-	const POT_CFG& p                  = POTS_CFG[ pot ];
-	const int      position_adc_width = p.MX / p.N;
-	const int      clearance_offset   = POTS_CFG[ pot ].D;
-	int&           var                = pot == 0 ? cAxis : cDist;
-	bool           ch                 = false;
+	auto const current_position = GetDiscretePotentiomenterPosition (
+	    kPotentiometersConfiguration[ i_potentiometer_index ], i_adc_value);
 
-	auto const maybe_position =
-	    etl::min (p.N - 1, i_adc_value / position_adc_width);
-
-	auto const position_range_min =
-	    etl::max (0, maybe_position - 1) * position_adc_width +
-	    clearance_offset;
-
-	auto const position_range_max =
-	    (maybe_position + 1) * position_adc_width - clearance_offset;
-
-	if ((position_range_min <= i_adc_value) &&
-	    (i_adc_value <= position_range_max))
+	if (current_position < 0)
 	{
-		var = maybe_position;
-
-		ch = true;
+		return;
 	}
 
-	if (ch && pot == 0)
-	{
-		lastJogTime = 0;
-	}
+	auto& var = (0 == i_potentiometer_index) ? cAxis : cDist;
 
-	if (ch)
+	if (current_position != var)
 	{
+		var = current_position;
+
+		if (0 == i_potentiometer_index)
+		{
+			lastJogTime = 0;
+		}
+
 		setDirty ();
 	}
 }
