@@ -5,9 +5,11 @@
         "akiramiyakoda.cppincludeguard",
         "llvm-vs-code-extensions.vscode-clangd",
         "ms-vscode.cpptools",
-        "ms-vscode.cpptools-extension-pack",
         "notskm.clang-tidy",
         "platformio.platformio-ide",
         "xaver.clang-format"
+    ],
+    "unwantedRecommendations": [
+        "ms-vscode.cpptools-extension-pack"
     ]
 }
