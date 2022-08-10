@@ -6,14 +6,16 @@
 
 #include "../Job.h"
 #include "FileChooser.h"
+#include "ui/SpindleControl.hpp"
 #include "ui/ToolTable.hpp"
 
 #include "../font_info.hpp"
 #include "../option_selection.hpp"
 
 
-extern FileChooser fileChooser;
-extern ToolTable<> tool_table;
+extern FileChooser    fileChooser;
+extern ToolTable<>    tool_table;
+extern SpindleControl spindle_control;
 
 
 namespace {
@@ -186,7 +188,8 @@ void GrblDRO::begin ()
 			             GCodeDevice::getDevice ()->scheduleCommand ("G54");
 		             });
 	         }},
-	        {'L', [] (char i_glyph, GrblDRO& io_dro, int16_t& io_id) {
+	        {'L',
+	         [] (char i_glyph, GrblDRO& io_dro, int16_t& io_id) {
 		         return MenuItem{
 		             io_id++,
 		             i_glyph,
@@ -199,6 +202,19 @@ void GrblDRO::begin ()
 		             [] (MenuItem&) {
 			             GCodeDevice::getDevice ()->scheduleCommand ("M5");
 		             }};
+	         }},
+	        {'S', [] (char i_glyph, GrblDRO& io_dro, int16_t& io_id) {
+		         return MenuItem::simpleItem (
+		             io_id++, i_glyph, [ &dro = io_dro ] (MenuItem&) {
+			             Job* job = Job::getJob ();
+
+			             if (job && job->isRunning ())
+			             {
+				             return;
+			             }
+
+			             Display::getDisplay ()->setScreen (&spindle_control);
+		             });
 	         }}};
 
 	auto id = int16_t{};

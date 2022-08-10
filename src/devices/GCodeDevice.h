@@ -17,7 +17,7 @@
 
 #define STATUS_REQUEST_INTERVAL 500
 
-const int MAX_DEVICE_OBSERVERS = 3;
+const int MAX_DEVICE_OBSERVERS = 4;
 struct DeviceStatusEvent {
 	int statusField;
 };

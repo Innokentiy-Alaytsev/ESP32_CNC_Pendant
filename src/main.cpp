@@ -7,9 +7,11 @@
 #include "InetServer.h"
 #include "Job.h"
 #include "devices/GCodeDevice.h"
+
 #include "ui/DRO.h"
 #include "ui/FileChooser.h"
 #include "ui/GrblDRO.h"
+#include "ui/SpindleControl.hpp"
 #include "ui/ToolTable.hpp"
 
 
@@ -72,12 +74,13 @@ DynamicJsonDocument grbl_dro_config{512};
 
 enum class Mode { DRO, FILECHOOSER };
 
-Display     display;
-FileChooser fileChooser;
-ToolTable<> tool_table;
-uint8_t     droBuffer[ sizeof (GrblDRO) ];
-DRO*        dro;
-Mode        cMode = Mode::DRO;
+Display        display;
+FileChooser    fileChooser;
+ToolTable<>    tool_table;
+SpindleControl spindle_control;
+uint8_t        droBuffer[ sizeof (GrblDRO) ];
+DRO*           dro;
+Mode           cMode = Mode::DRO;
 
 void encISR ();
 void bt1ISR ();
@@ -174,6 +177,11 @@ void setup ()
 	tool_table.SetReturnCallback (
 	    [ &dro ] () { Display::getDisplay ()->setScreen (dro); });
 
+	spindle_control.ApplyConfig (
+	    cfg[ "spindle_control" ].as< JsonObjectConst > ());
+	spindle_control.SetReturnCallback (
+	    [ &dro ] () { Display::getDisplay ()->setScreen (dro); });
+
 	fileChooser.begin ();
 	fileChooser.setCallback ([ & ] (bool res, String path) {
 		if (res)
@@ -221,6 +229,8 @@ void deviceLoop (void* pvParams)
 		dev->add_observer (*grbl_dro);
 
 		dro = grbl_dro;
+
+		dev->add_observer (spindle_control);
 	}
 	else
 		dro = new (droBuffer) DRO ();
