@@ -118,7 +118,8 @@ void FileChooser::onButtonPressed (Button bt, int8_t arg)
 		break;
 	case Button::BT1: {
 		String newPath = cDir.name ();
-		if (newPath == "/")
+
+		if ((0 == newPath.length ()) || (newPath == "/"))
 		{
 			S_DEBUGF ("FileChooser::onButtonPressed(BT2): quit\n");
 			if (returnCallback)
@@ -130,7 +131,8 @@ void FileChooser::onButtonPressed (Button bt, int8_t arg)
 			    "FileChooser::onButtonPressed(BT2): moving up from %s\n",
 			    newPath.c_str ());
 			int p = newPath.lastIndexOf ("/");
-			if (p == 0)
+
+			if (-1 == p)
 				newPath = "/";
 			else
 				newPath = newPath.substring (0, p);
