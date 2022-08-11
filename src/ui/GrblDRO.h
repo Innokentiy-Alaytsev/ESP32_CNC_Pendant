@@ -32,7 +32,7 @@ private:
 	static size_t constexpr kJogStepCount     = 3;
 
 	static inline etl::vector< char, kMenuItemCountMax > const
-	    kDefaultMenuItems = {'T', 'o', 'p', 'u', 'H', 'w', 'L'};
+	    kDefaultMenuItems = {'T', 'o', 'p', 'u', 'H', 'w', 'L', 'S'};
 
 	static inline etl::vector< char, kDroItemCountMax > const kDefaultDroItems =
 	    {'X', 'Y', 'Z'};

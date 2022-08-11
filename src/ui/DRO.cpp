@@ -2,7 +2,9 @@
 
 
 #include "../devices/GCodeDevice.h"
+
 #include "../discrete_switch_potentiometer.hpp"
+#include "../potentiometers_config.hpp"
 
 
 DRO::DRO ()
@@ -86,10 +88,6 @@ struct POT_CFG {
 	int N;
 	int D;
 };
-
-
-static constexpr DiscreteSwitchPotentiometerConfig
-    kPotentiometersConfiguration[]{{1200, 3, 50}, {1200, 3, 50}};
 
 
 void DRO::onPotValueChanged (int i_potentiometer_index, int i_adc_value)
