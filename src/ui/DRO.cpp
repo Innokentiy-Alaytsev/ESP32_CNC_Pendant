@@ -20,11 +20,15 @@ void DRO::begin ()
 
 void DRO::loop ()
 {
+	static auto constexpr kPeriod = 500;
+
 	Screen::loop ();
 
-	if (nextRefresh != 0 && millis () > nextRefresh)
+	auto const current_time = millis ();
+
+	if (refresh_enabled_ && (current_time > nextRefresh))
 	{
-		nextRefresh = millis () + 500;
+		nextRefresh = current_time + kPeriod;
 
 		GCodeDevice* dev = GCodeDevice::getDevice ();
 
@@ -38,13 +42,14 @@ void DRO::loop ()
 
 void DRO::enableRefresh (bool r)
 {
-	nextRefresh = r ? millis () : 0;
+	refresh_enabled_ = r;
+	nextRefresh      = r ? millis () : 0;
 }
 
 
 bool DRO::isRefreshEnabled ()
 {
-	return nextRefresh != 0;
+	return refresh_enabled_;
 }
 
 

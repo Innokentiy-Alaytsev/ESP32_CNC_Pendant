@@ -28,6 +28,8 @@ protected:
 	uint32_t nextRefresh;
 	uint32_t lastJogTime;
 
+	bool refresh_enabled_{true};
+
 
 	static char axisChar (const JogAxis& a);
 
