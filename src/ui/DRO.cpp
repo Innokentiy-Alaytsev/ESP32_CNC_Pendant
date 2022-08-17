@@ -88,13 +88,6 @@ void DRO::drawContents ()
 };
 
 
-struct POT_CFG {
-	int MX;
-	int N;
-	int D;
-};
-
-
 void DRO::onPotValueChanged (int i_potentiometer_index, int i_adc_value)
 {
 	auto const current_position = GetDiscretePotentiomenterPosition (
