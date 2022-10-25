@@ -288,6 +288,8 @@ void loop ()
 		}
 		s += c;
 	}
+
+	delay (10);
 }
 
 
