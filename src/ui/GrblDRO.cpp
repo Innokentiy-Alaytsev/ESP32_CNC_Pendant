@@ -13,9 +13,9 @@
 #include "../option_selection.hpp"
 
 
-extern FileChooser    fileChooser;
-extern ToolTable<>    tool_table;
-extern SpindleControl spindle_control;
+extern FileChooser     fileChooser;
+extern ToolTable< 25 > tool_table;
+extern SpindleControl  spindle_control;
 
 
 namespace {

@@ -74,13 +74,13 @@ DynamicJsonDocument grbl_dro_config{512};
 
 enum class Mode { DRO, FILECHOOSER };
 
-Display        display;
-FileChooser    fileChooser;
-ToolTable<>    tool_table;
-SpindleControl spindle_control;
-uint8_t        droBuffer[ sizeof (GrblDRO) ];
-DRO*           dro;
-Mode           cMode = Mode::DRO;
+Display         display;
+FileChooser     fileChooser;
+ToolTable< 25 > tool_table;
+SpindleControl  spindle_control;
+uint8_t         droBuffer[ sizeof (GrblDRO) ];
+DRO*            dro;
+Mode            cMode = Mode::DRO;
 
 void encISR ();
 void bt1ISR ();
