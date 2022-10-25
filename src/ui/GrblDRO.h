@@ -50,7 +50,7 @@ private:
 	int selected_dro_item_{0};
 
 	bool last_can_jog_state_{false};
-	bool tool_changed_{false};
+	bool device_coordinates_changed_{false};
 
 	Vector3f target_mach_position_;
 	Vector3f target_work_position_;

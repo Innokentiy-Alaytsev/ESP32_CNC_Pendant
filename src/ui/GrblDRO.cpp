@@ -127,7 +127,7 @@ void GrblDRO::begin ()
 				             return;
 			             }
 
-			             dro.tool_changed_ = true;
+			             dro.device_coordinates_changed_ = true;
 
 			             Display::getDisplay ()->setScreen (&tool_table);
 		             });
@@ -186,6 +186,8 @@ void GrblDRO::begin ()
 			             GCodeDevice::getDevice ()->scheduleCommand (
 			                 dro.wco_offset_cmd_);
 			             GCodeDevice::getDevice ()->scheduleCommand ("G54");
+
+			             dro.device_coordinates_changed_ = true;
 		             });
 	         }},
 	        {'L',
@@ -239,13 +241,13 @@ void GrblDRO::notification (const DeviceStatusEvent& i_event)
 
 	auto const can_jog = dev->canJog ();
 
-	if (tool_changed_ || (can_jog != last_can_jog_state_))
+	if (device_coordinates_changed_ || (can_jog != last_can_jog_state_))
 	{
 		last_can_jog_state_ = can_jog;
 
-		if (tool_changed_ || can_jog)
+		if (device_coordinates_changed_ || can_jog)
 		{
-			tool_changed_ = false;
+			device_coordinates_changed_ = false;
 
 			target_work_position_ =
 			    Vector3f{dev->getX (), dev->getY (), dev->getZ ()};
@@ -255,6 +257,8 @@ void GrblDRO::notification (const DeviceStatusEvent& i_event)
 			    target_work_position_.y + dev->getYOfs (),
 			    target_work_position_.z + dev->getZOfs ()};
 		}
+
+		setDirty ();
 	}
 }
 
