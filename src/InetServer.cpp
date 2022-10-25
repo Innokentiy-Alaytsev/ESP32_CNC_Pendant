@@ -685,10 +685,10 @@ void WebServer::registerWebBrowser ()
 			int    p     = fname.lastIndexOf ('/');
 			fname        = fname.substring (p + 1);
 			if (f.isDirectory ())
-				resp += "<li><a href=\"/fs" + String (f.name ()) + "/\">" +
+				resp += "<li><a href=\"/fs/" + String (f.name ()) + "/\">" +
 				    fname + "</a></li>\n";
 			else
-				resp += "<li><a href=\"/fs" + String (f.name ()) + "\">" +
+				resp += "<li><a href=\"/fs/" + String (f.name ()) + "\">" +
 				    fname + "</a> " + f.size () + "B " +
 				    +"[<a href=\"/api2/print?file=" + String (f.name ()) +
 				    "\">print</a>]</li>\n";
