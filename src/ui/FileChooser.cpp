@@ -208,7 +208,8 @@ void FileChooser::onButtonPressed (Button bt, int8_t arg)
 			cDirName += "/";
 		}
 
-		String newPath = cDirName + file;
+		String newPath =
+		    String (cDirName.startsWith ("/") ? "" : "/") + cDirName + file;
 
 		if (isDir)
 		{
