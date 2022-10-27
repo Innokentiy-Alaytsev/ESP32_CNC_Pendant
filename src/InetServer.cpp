@@ -678,24 +678,41 @@ void WebServer::registerWebBrowser ()
 			resp += sdir.substring (0, p);
 			resp += "\">../</a></li>\n";
 		}
+
+		if (!sdir.endsWith ("/"))
+		{
+			sdir += "/";
+		}
+
 		File f;
 		while (f = dir.openNextFile ())
 		{
-			String fname = f.name ();
-			int    p     = fname.lastIndexOf ('/');
-			fname        = fname.substring (p + 1);
+			auto const file_path = sdir + f.name ();
+			auto const file_name =
+			    file_path.substring (file_path.lastIndexOf ('/') + 1);
+
+			Serial.println (file_name);
+
 			if (f.isDirectory ())
-				resp += "<li><a href=\"/fs/" + String (f.name ()) + "/\">" +
-				    fname + "</a></li>\n";
+			{
+				resp += "<li><a href=\"/fs" + file_path + "/\">" + file_name +
+				    "</a></li>\n";
+			}
 			else
-				resp += "<li><a href=\"/fs/" + String (f.name ()) + "\">" +
-				    fname + "</a> " + f.size () + "B " +
-				    +"[<a href=\"/api2/print?file=" + String (f.name ()) +
+			{
+				resp += "<li><a href=\"/fs" + file_path + "\">" + file_name +
+				    "</a> " + f.size () + "B " +
+				    +"[<a href=\"/api2/print?file=" + file_path +
 				    "\">print</a>]</li>\n";
+			}
+
 			f.close ();
 		}
+
 		dir.close ();
+
 		resp += "\n</ul>\n</body></html>";
+
 		request->send (200, "text/html", resp);
 	});
 
