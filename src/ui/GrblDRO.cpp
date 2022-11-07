@@ -206,17 +206,16 @@ void GrblDRO::begin ()
 		             }};
 	         }},
 	        {'S', [] (char i_glyph, GrblDRO& io_dro, int16_t& io_id) {
-		         return MenuItem::simpleItem (
-		             io_id++, i_glyph, [ &dro = io_dro ] (MenuItem&) {
-			             Job* job = Job::getJob ();
+		         return MenuItem::simpleItem (io_id++, i_glyph, [] (MenuItem&) {
+			         Job* job = Job::getJob ();
 
-			             if (job && job->isRunning ())
-			             {
-				             return;
-			             }
+			         if (job && job->isRunning ())
+			         {
+				         return;
+			         }
 
-			             Display::getDisplay ()->setScreen (&spindle_control);
-		             });
+			         Display::getDisplay ()->setScreen (&spindle_control);
+		         });
 	         }}};
 
 	auto id = int16_t{};
