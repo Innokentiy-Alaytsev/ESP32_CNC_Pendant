@@ -36,11 +36,17 @@ public:
 	    , connected (false)
 	{
 		if (priorityBufSize != 0)
-			buf0 = xMessageBufferCreate (priorityBufSize);
+		{
+			priority_buf = xMessageBufferCreate (priorityBufSize);
+		}
+
 		if (bufSize != 0)
-			buf1 = xMessageBufferCreate (bufSize);
-		buf0Len = bufSize;
-		buf1Len = priorityBufSize;
+		{
+			regular_buf = xMessageBufferCreate (bufSize);
+		}
+
+		priority_buf_len = priorityBufSize;
+		regular_buf_len  = bufSize;
 
 		assert (inst == nullptr);
 		inst = this;
@@ -70,11 +76,11 @@ public:
 	{
 		if (panic)
 			return false;
-		if (!buf1)
+		if (!regular_buf)
 			return false;
 		if (len == 0)
 			return false;
-		return xMessageBufferSend (buf1, cmd, len, 0) != 0;
+		return xMessageBufferSend (regular_buf, cmd, len, 0) != 0;
 	};
 	virtual bool schedulePriorityCommand (String cmd)
 	{
@@ -83,21 +89,21 @@ public:
 	virtual bool schedulePriorityCommand (const char* cmd, size_t len)
 	{
 		// if(panic) return false;
-		if (!buf0)
+		if (!priority_buf)
 			return false;
 		if (len == 0)
 			return false;
-		return xMessageBufferSend (buf0, cmd, len, 0) != 0;
+		return xMessageBufferSend (priority_buf, cmd, len, 0) != 0;
 	}
 	virtual bool canSchedule (size_t len)
 	{
 		if (panic)
 			return false;
-		if (!buf1)
+		if (!regular_buf)
 			return false;
 		if (len == 0)
 			return false;
-		return xMessageBufferSpaceAvailable (buf1) > len + 2;
+		return xMessageBufferSpaceAvailable (regular_buf) > len + 2;
 	}
 
 	virtual bool jog (uint8_t axis, float dist, int feed = 100) = 0;
@@ -167,8 +173,9 @@ public:
 
 	size_t getQueueLength ()
 	{
-		return (buf0Len - xMessageBufferSpaceAvailable (buf0)) +
-		    (buf1Len - xMessageBufferSpaceAvailable (buf1));
+		return (priority_buf_len -
+		        xMessageBufferSpaceAvailable (priority_buf)) +
+		    (regular_buf_len - xMessageBufferSpaceAvailable (regular_buf));
 	}
 
 	size_t getSentQueueLength ()
@@ -190,7 +197,7 @@ protected:
 	bool     connected;
 	String   desc;
 	String   typeStr;
-	size_t   buf0Len, buf1Len;
+	size_t   priority_buf_len, regular_buf_len;
 	bool     canTimeout;
 
 	static const size_t MAX_GCODE_LINE = 96;
@@ -201,8 +208,8 @@ protected:
 	float                 x, y, z;
 	bool                  panic = false;
 	uint32_t              nextStatusRequestTime;
-	MessageBufferHandle_t buf0;
-	MessageBufferHandle_t buf1;
+	MessageBufferHandle_t priority_buf = nullptr;
+	MessageBufferHandle_t regular_buf  = nullptr;
 
 	bool xoff;
 	bool xoffEnabled = false;
@@ -255,10 +262,10 @@ protected:
 
 	void cleanupQueue ()
 	{
-		if (buf1)
-			xMessageBufferReset (buf1);
-		if (buf0)
-			xMessageBufferReset (buf0);
+		if (regular_buf)
+			xMessageBufferReset (regular_buf);
+		if (priority_buf)
+			xMessageBufferReset (priority_buf);
 		sentCounter->clear ();
 		curUnsentCmdLen = 0;
 	}
@@ -396,7 +403,8 @@ public:
 		constexpr const char AXIS[] = {'X', 'Y', 'Z', 'E'};
 		char                 msg[ 81 ];
 		snprintf (msg, 81, "G0 F%d %c%04f", feed, AXIS[ axis ], dist);
-		if (xMessageBufferSpacesAvailable (buf1) > strlen (msg) + 3 + 3 + 6)
+		if (xMessageBufferSpacesAvailable (regular_buf) >
+		    strlen (msg) + 3 + 3 + 6)
 			return false;
 		schedulePriorityCommand ("G91");
 		schedulePriorityCommand (msg);

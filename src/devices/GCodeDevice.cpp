@@ -166,7 +166,7 @@ void GCodeDevice::sendCommands ()
 		}
 #else
 		curUnsentPriorityCmdLen = xMessageBufferReceive (
-		    buf0, curUnsentPriorityCmd, MAX_GCODE_LINE, 0);
+		    priority_buf, curUnsentPriorityCmd, MAX_GCODE_LINE, 0);
 		curUnsentPriorityCmd[ curUnsentPriorityCmdLen ] = 0;
 #endif
 	}
@@ -175,7 +175,8 @@ void GCodeDevice::sendCommands ()
 	{
 #ifdef ADD_LINECOMMENTS
 		char tmp[ MAX_GCODE_LINE + 1 ];
-		curUnsentCmdLen = xMessageBufferReceive (buf1, tmp, MAX_GCODE_LINE, 0);
+		curUnsentCmdLen =
+		    xMessageBufferReceive (regular_buf, tmp, MAX_GCODE_LINE, 0);
 		if (curUnsentCmdLen != 0)
 		{
 			tmp[ curUnsentCmdLen ] = 0;
@@ -183,8 +184,8 @@ void GCodeDevice::sendCommands ()
 			curUnsentCmdLen = strlen (curUnsentCmd);
 		}
 #else
-		curUnsentCmdLen =
-		    xMessageBufferReceive (buf1, curUnsentCmd, MAX_GCODE_LINE, 0);
+		curUnsentCmdLen = xMessageBufferReceive (
+		    regular_buf, curUnsentCmd, MAX_GCODE_LINE, 0);
 		curUnsentCmd[ curUnsentCmdLen ] = 0;
 #endif
 		// loadedNewCmd = true;
