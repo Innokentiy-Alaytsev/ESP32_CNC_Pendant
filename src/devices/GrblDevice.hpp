@@ -28,6 +28,11 @@ public:
 
 	virtual ~GrblDevice () = default;
 
+	const String& InputPinState () const noexcept
+	{
+		return input_pin_state_;
+	}
+
 
 	bool jog (uint8_t axis, float dist, int feed) override;
 
@@ -117,6 +122,8 @@ private:
 	String lastResponse;
 
 	String status;
+
+	String input_pin_state_;
 
 	// WPos = MPos - WCO
 	float ofsX, ofsY, ofsZ;

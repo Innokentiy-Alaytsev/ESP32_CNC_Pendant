@@ -216,7 +216,13 @@ void GrblDevice::parseGrblStatus (etl::string_view i_status_string)
 		return;
 	}
 
-	enum InfoMask { kSpindleAndFeed = 0b001, kWco = 0b010 };
+	input_pin_state_.clear ();
+
+	enum InfoMask {
+		kSpindleAndFeed = 0b001,
+		kWco            = 0b010,
+		kInputPinState  = 0b100
+	};
 
 	auto parsed_info = int{};
 
@@ -266,6 +272,18 @@ void GrblDevice::parseGrblStatus (etl::string_view i_status_string)
 			ofsZ = wco.z;
 
 			parsed_info |= InfoMask::kWco;
+		}
+		else if (
+		    !(parsed_info & InfoMask::kInputPinState) &&
+		    current_info_view.starts_with ("Pn:"))
+		{
+			static auto constexpr kPnPrefixSize = sizeof ("Pn:") - 1;
+
+			input_pin_state_ = String{
+			    current_info_view.data () + kPnPrefixSize,
+			    next_separator_pos - kPnPrefixSize + 1};
+
+			parsed_info |= InfoMask::kInputPinState;
 		}
 	}
 
