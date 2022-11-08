@@ -8,6 +8,8 @@
 #include <etl/flat_map.h>
 #include <etl/type_traits.h>
 
+#include "../devices/GrblDevice.hpp"
+
 #include "../Job.h"
 
 #include "../font_info.hpp"

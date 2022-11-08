@@ -13,6 +13,9 @@
 #include "../option_selection.hpp"
 
 
+#include "../devices/GrblDevice.hpp"
+
+
 extern FileChooser     fileChooser;
 extern ToolTable< 25 > tool_table;
 extern SpindleControl  spindle_control;

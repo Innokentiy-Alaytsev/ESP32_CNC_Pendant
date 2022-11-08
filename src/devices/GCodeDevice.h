@@ -2,11 +2,11 @@
 
 #include <Arduino.h>
 #include <etl/observer.h>
-//#include <etl/queue.h>
+// #include <etl/queue.h>
 #include "CommandQueue.h"
 #include <message_buffer.h>
 
-//#define ADD_LINECOMMENTS
+// #define ADD_LINECOMMENTS
 
 #define GD_DEBUGF(...) // { Serial.printf(__VA_ARGS__); }
 #define GD_DEBUGS(s)   // { Serial.println(s); }
@@ -281,100 +281,6 @@ private:
 	// friend void loop();
 };
 
-class GrblDevice : public GCodeDevice {
-public:
-	GrblDevice (Stream* s)
-	    : GCodeDevice (s, 20, 100)
-	{
-		typeStr     = "grbl";
-		sentCounter = &sentQueue;
-		canTimeout  = false;
-	};
-	GrblDevice ()
-	    : GCodeDevice ()
-	{
-		typeStr     = "grbl";
-		sentCounter = &sentQueue;
-	}
-
-	virtual ~GrblDevice ()
-	{
-	}
-
-	bool jog (uint8_t axis, float dist, int feed) override;
-
-	bool canJog () override;
-
-	virtual void begin ()
-	{
-		GCodeDevice::begin ();
-		schedulePriorityCommand ("$I");
-		schedulePriorityCommand ("?");
-	}
-
-	virtual void reset ()
-	{
-		panic = false;
-		cleanupQueue ();
-		char c = 0x18;
-		schedulePriorityCommand (&c, 1);
-	}
-
-	virtual void requestStatusUpdate () override
-	{
-		schedulePriorityCommand ("?");
-	}
-
-	/// WPos = MPos - WCO
-	float getXOfs ()
-	{
-		return ofsX;
-	}
-	float getYOfs ()
-	{
-		return ofsY;
-	}
-	float getZOfs ()
-	{
-		return ofsZ;
-	}
-	uint getSpindleVal ()
-	{
-		return spindleVal;
-	}
-	uint getFeed ()
-	{
-		return feed;
-	}
-	String& getStatus ()
-	{
-		return status;
-	}
-	String& getLastResponse ()
-	{
-		return lastResponse;
-	}
-
-protected:
-	void trySendCommand () override;
-
-	void tryParseResponse (char* cmd, size_t len) override;
-
-private:
-	SimpleCounter< 15, 128 > sentQueue;
-
-	String lastResponse;
-
-	String status;
-
-	// WPos = MPos - WCO
-	float ofsX, ofsY, ofsZ;
-	uint  feed, spindleVal;
-
-	void parseGrblStatus (char* v);
-
-	bool isCmdRealtime (char* data, size_t len);
-};
 
 class MarlinDevice : public GCodeDevice {
 

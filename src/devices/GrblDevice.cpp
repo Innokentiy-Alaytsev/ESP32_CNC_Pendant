@@ -1,4 +1,4 @@
-#include "GCodeDevice.h"
+#include "GrblDevice.hpp"
 
 
 bool GrblDevice::jog (uint8_t axis, float dist, int feed)

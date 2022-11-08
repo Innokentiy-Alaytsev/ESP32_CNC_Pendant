@@ -1,5 +1,9 @@
 #include "GCodeDevice.h"
 
+
+#include "GrblDevice.hpp"
+
+
 #define XOFF 0x13
 #define XON 0x11
 
