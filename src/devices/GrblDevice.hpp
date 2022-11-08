@@ -122,7 +122,7 @@ private:
 	float ofsX, ofsY, ofsZ;
 	uint  feed, spindleVal;
 
-	void parseGrblStatus (char* v);
+	void parseGrblStatus (etl::string_view i_status_string);
 
 	bool isCmdRealtime (char* data, size_t len);
 };
