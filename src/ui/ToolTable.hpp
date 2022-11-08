@@ -45,6 +45,7 @@ template < size_t KCapacity = 10 >
 class ToolTable : public Screen {
 public:
 	static auto constexpr kCapacity = KCapacity;
+	static auto constexpr kNoToolId = -1;
 
 
 	ToolTable () = default;
@@ -93,6 +94,12 @@ public:
 			tool.offsets.y = tool_obj[ "offsets" ][ "y" ].as< float > ();
 			tool.offsets.z = tool_obj[ "offsets" ][ "z" ].as< float > ();
 		}
+	}
+
+
+	int CurrentTool () const noexcept
+	{
+		return active_tool_;
 	}
 
 
@@ -204,7 +211,6 @@ protected:
 
 
 private:
-	static auto constexpr kNoToolId     = -1;
 	static auto constexpr kLineHeight   = int{10};
 	static auto constexpr kMarkRadius   = 2;
 	static auto constexpr kMarkDiameter = 2 * kMarkRadius + 1;

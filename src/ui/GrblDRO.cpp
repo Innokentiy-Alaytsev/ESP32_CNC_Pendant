@@ -365,6 +365,29 @@ void GrblDRO::drawContents ()
 		}
 	}
 
+	{ // Draw misc. device status
+		static auto const tool_info_x = u8g2.getWidth () -
+		    u8g2.getStrWidth ("---%") - u8g2.getStrWidth ("MT?? ") + 2;
+
+		static auto const probe_state_x =
+		    tool_info_x - u8g2.getStrWidth ("P") - 4;
+
+		auto const active_tool = tool_table.CurrentTool ();
+
+		if (ToolTable< 25 >::kNoToolId == active_tool)
+		{
+			u8g2.drawStr (tool_info_x, 0, "NTxx");
+		}
+		else
+		{
+			char tool_info[ sizeof ("MT??") ];
+
+			snprintf (tool_info, sizeof (tool_info), "MT%02d", active_tool);
+
+			u8g2.drawStr (tool_info_x, 0, tool_info);
+		}
+	}
+
 	u8g2.drawHLine (0, kStatsLine - 1, u8g2.getWidth ());
 
 	u8g2.setFont (u8g2_font_5x8_tr);
