@@ -142,9 +142,6 @@ void GCodeDevice::setDevice(GCodeDevice *dev) {
 
 void GCodeDevice::sendCommands ()
 {
-
-	if (panic)
-		return;
 	// bool loadedNewCmd=false;
 
 	if (xoffEnabled && xoff)
@@ -174,7 +171,7 @@ void GCodeDevice::sendCommands ()
 #endif
 	}
 
-	if (curUnsentPriorityCmdLen == 0 && curUnsentCmdLen == 0)
+	if (!panic && (0 == curUnsentPriorityCmdLen) && (0 == curUnsentCmdLen))
 	{
 #ifdef ADD_LINECOMMENTS
 		char tmp[ MAX_GCODE_LINE + 1 ];
@@ -193,8 +190,11 @@ void GCodeDevice::sendCommands ()
 		// loadedNewCmd = true;
 	}
 
-	if (curUnsentCmdLen == 0 && curUnsentPriorityCmdLen == 0)
+	// Also happens when in panic and there are no priority commands.
+	if ((0 == curUnsentCmdLen) && (0 == curUnsentPriorityCmdLen))
+	{
 		return;
+	}
 
 	trySendCommand ();
 }
