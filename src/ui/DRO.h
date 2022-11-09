@@ -23,10 +23,13 @@ public:
 
 
 protected:
+	static auto constexpr kPeriod = 500;
+
+
 	JogAxis  cAxis;
 	JogDist  cDist;
-	uint32_t nextRefresh;
-	uint32_t lastJogTime;
+	uint32_t nextRefresh{};
+	uint32_t lastJogTime{};
 
 	bool refresh_enabled_{true};
 

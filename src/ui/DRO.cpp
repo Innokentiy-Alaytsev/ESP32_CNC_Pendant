@@ -8,20 +8,18 @@
 
 
 DRO::DRO ()
-    : nextRefresh (1)
 {
 }
 
 
 void DRO::begin ()
 {
+	nextRefresh = millis () + kPeriod;
 }
 
 
 void DRO::loop ()
 {
-	static auto constexpr kPeriod = 500;
-
 	Screen::loop ();
 
 	auto const current_time = millis ();
@@ -36,6 +34,8 @@ void DRO::loop ()
 		{
 			dev->requestStatusUpdate ();
 		}
+
+		setDirty ();
 	}
 }
 
@@ -43,7 +43,7 @@ void DRO::loop ()
 void DRO::enableRefresh (bool r)
 {
 	refresh_enabled_ = r;
-	nextRefresh      = r ? millis () : 0;
+	nextRefresh      = millis () + kPeriod;
 }
 
 
