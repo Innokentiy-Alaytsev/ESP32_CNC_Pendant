@@ -232,6 +232,19 @@ void FileChooser::onButtonPressed (Button bt, int8_t arg)
 		}
 		break;
 	}
+
+	case Button::BT3: {
+		if (returnCallback)
+		{
+			returnCallback (false, String{});
+		}
+		else
+		{
+			DEBUGF ("no  ret callback\n");
+		}
+	}
+	break;
+
 	default:
 		break;
 	}
