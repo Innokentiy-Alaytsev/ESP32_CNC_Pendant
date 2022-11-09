@@ -13,7 +13,6 @@
 #include "Dro.h"
 
 #include "../VectorND.hpp"
-#include "../devices/GCodeDevice.h"
 
 
 /*

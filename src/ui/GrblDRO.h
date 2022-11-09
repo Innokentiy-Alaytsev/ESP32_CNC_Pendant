@@ -7,7 +7,6 @@
 #include "DRO.h"
 
 #include "../VectorND.hpp"
-#include "../devices/GCodeDevice.h"
 
 
 class GrblDRO : public DRO, public DeviceObserver {

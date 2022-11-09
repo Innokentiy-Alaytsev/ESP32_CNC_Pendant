@@ -1,108 +1,141 @@
-#include "GCodeDevice.h"
+#include "GrblDevice.hpp"
+
 
 bool GrblDevice::jog (uint8_t axis, float dist, int feed)
 {
 	constexpr static char AXIS[] = {'X', 'Y', 'Z'};
 	char                  msg[ 81 ];
+
 	snprintf (msg, 81, "$J=G91 F%d %c%.3f", feed, AXIS[ axis ], dist);
+
 	return scheduleCommand (msg, strlen (msg));
 }
+
 
 bool GrblDevice::canJog ()
 {
 	return status == "Idle" || status == "Jog";
 }
 
+
 bool GrblDevice::isCmdRealtime (char* data, size_t len)
 {
 	if (len != 1)
+	{
 		return false;
-	char c = data[ 0 ];
+	}
+
+	unsigned char c = static_cast< unsigned char > (data[ 0 ]);
+
 	switch (c)
 	{
-	case '?':  // status
-	case '~':  // cycle start/stop
-	case '!':  // feedhold
-	case 0x18: // ^x, reset
-	case 0x84: // door
-	case 0x85: // jog cancel
-	case 0x9E: // toggle spindle
-	case 0xA0: // toggle flood coolant
-	case 0xA1: // toggle mist coolant
+	case '?':
+		[[fallthrough]]; // status
+	case '~':
+		[[fallthrough]]; // cycle start/stop
+	case '!':
+		[[fallthrough]]; // feedhold
+	case 0x18:
+		[[fallthrough]]; // ^x, reset
+	case 0x84:
+		[[fallthrough]]; // door
+	case 0x85:
+		[[fallthrough]]; // jog cancel
+	case 0x9E:
+		[[fallthrough]]; // toggle spindle
+	case 0xA0:
+		[[fallthrough]]; // toggle flood coolant
+	case 0xA1: {         // toggle mist coolant
 		return true;
-	default:
+	}
+	default: {
 		// feed override, rapid override, spindle override
 		if (c >= 0x90 && c <= 0x9D)
+		{
 			return true;
+		}
 		return false;
+	}
 	}
 }
 
+
 void GrblDevice::trySendCommand ()
 {
-
 	if (isCmdRealtime (curUnsentPriorityCmd, curUnsentPriorityCmdLen))
 	{
 		printerSerial->write (curUnsentPriorityCmd, curUnsentPriorityCmdLen);
+
 		GD_DEBUGF (
 		    "<  (f%3d,%3d) '%c' RT\n",
 		    sentCounter->getFreeLines (),
 		    sentCounter->getFreeBytes (),
 		    curUnsentPriorityCmd[ 0 ]);
+
 		curUnsentPriorityCmdLen = 0;
+
 		return;
 	}
 
-	char*   cmd = curUnsentPriorityCmdLen != 0 ? &curUnsentPriorityCmd[ 0 ]
+	char* cmd = (curUnsentPriorityCmdLen != 0) ? &curUnsentPriorityCmd[ 0 ]
 	                                           : &curUnsentCmd[ 0 ];
-	size_t* len = curUnsentPriorityCmdLen != 0 ? &curUnsentPriorityCmdLen
-	                                           : &curUnsentCmdLen;
+	auto& len = (curUnsentPriorityCmdLen != 0) ? curUnsentPriorityCmdLen
+	                                           : curUnsentCmdLen;
 
-	if (sentCounter->canPush (*len))
+	if (sentCounter->canPush (len))
 	{
-		sentCounter->push (cmd, *len);
-		printerSerial->write (cmd, *len);
+		sentCounter->push (cmd, len);
+
+		printerSerial->write (cmd, len);
+
 		printerSerial->print ('\n');
+
 		GD_DEBUGF (
 		    "<  (f%3d,%3d) '%s' (%d)\n",
 		    sentCounter->getFreeLines (),
 		    sentCounter->getFreeBytes (),
 		    cmd,
-		    *len);
-		*len = 0;
-	}
-	else
-	{
-		// if(loadedNewCmd) GD_DEBUGF("<  Not sent, free lines: %d, free space:
-		// %d\n", sentQueue.getFreeLines() , sentQueue.getFreeBytes()  );
+		    len);
+
+		len = 0;
 	}
 }
 
-void GrblDevice::tryParseResponse (char* resp, size_t len)
+
+void GrblDevice::tryParseResponse (char* i_resp, size_t i_length)
 {
-	if (startsWith (resp, "ok"))
+	auto const response = etl::string_view{i_resp, i_length};
+
+	if (response.starts_with ("ok"))
 	{
 		sentQueue.pop ();
-		// responseDetail = "ok";
+
 		connected = true;
 		panic     = false;
 	}
-	else if (startsWith (resp, "error") || startsWith (resp, "ALARM:"))
+	else if (response.starts_with ("error") || response.starts_with ("ALARM:"))
 	{
 		sentQueue.pop ();
+
 		panic = true;
-		GD_DEBUGF ("ERR '%s'\n", resp);
+
+		GD_DEBUGF ("ERR '%s'\n", i_resp);
+
 		notify_observers (DeviceStatusEvent{1});
-		lastResponse = resp;
+
+		lastResponse = i_resp;
 	}
-	else if (startsWith (resp, "<"))
+	else if (response.starts_with ('<'))
 	{
-		parseGrblStatus (resp + 1);
+		parseGrblStatus (response);
 	}
-	else if (startsWith (resp, "[MSG:"))
+	else if (response.starts_with ("[MSG:"))
 	{
-		GD_DEBUGF ("Msg '%s'\n", resp);
-		lastResponse = resp;
+		GD_DEBUGF ("Msg '%s'\n", i_resp);
+
+		lastResponse = String{
+		    response.data () + response.find_first_of (':') + 1,
+		    response.size ()};
 	}
 
 	GD_DEBUGF (
@@ -112,88 +145,146 @@ void GrblDevice::tryParseResponse (char* resp, size_t len)
 	    resp);
 }
 
-void mystrcpy (char* dst, const char* start, const char* end)
-{
-	while (start != end)
-	{
-		*(dst++) = *(start++);
-	}
-	*dst = 0;
-}
 
-void GrblDevice::parseGrblStatus (char* v)
+void GrblDevice::parseGrblStatus (etl::string_view i_status_string)
 {
+	static auto constexpr kSeparator = '|';
+
+
+	struct Coordinates {
+		float x{};
+		float y{};
+		float z{};
+	};
+
+
+	static auto constexpr ConsumeCoordinatesTriplet = [] (auto&& i_string) {
+		Coordinates coordinates;
+
+		coordinates.x = atof (i_string.data ());
+
+		i_string.remove_prefix (i_string.find_first_of (',') + 1);
+
+		coordinates.y = atof (i_string.data ());
+
+		i_string.remove_prefix (i_string.find_first_of (',') + 1);
+
+		coordinates.z = atof (i_string.data ());
+
+		return coordinates;
+	};
+
+
 	//<Idle|MPos:9.800,0.000,0.000|FS:0,0|WCO:0.000,0.000,0.000>
 	//<Idle|MPos:9.800,0.000,0.000|FS:0,0|Ov:100,100,100>
-	// GD_DEBUGF("parsing %s\n", v.c_str() );
 
-	char buf[ 10 ];
-	char cpy[ 100 ];
-	strncpy (cpy, v, 100);
-	v = cpy;
+	// Remove '<' at the beginning of the status string
+	i_status_string.remove_prefix (1);
 
-	// idle/jogging
-	char* pch = strtok (v, "|");
-	if (pch == nullptr)
+	if (auto const status_separator_pos =
+	        i_status_string.find_first_of (kSeparator);
+	    etl::string_view::npos != status_separator_pos)
+	{
+		status = String{i_status_string.data (), status_separator_pos};
+
+		i_status_string.remove_prefix (status_separator_pos + 1);
+	}
+	else
+	{
 		return;
-	status = pch;
-	// GD_DEBUGF("Parsed Status: %s\n", status.c_str() );
+	}
 
 	// MPos:0.000,0.000,0.000
-	pch = strtok (nullptr, "|");
-	if (pch == nullptr)
-		return;
-
-	char *st, *fi;
-	st = pch + 5;
-	fi = strchr (st, ',');
-	mystrcpy (buf, st, fi);
-	x  = atof (buf);
-	st = fi + 1;
-	fi = strchr (st, ',');
-	mystrcpy (buf, st, fi);
-	y  = atof (buf);
-	st = fi + 1;
-	z  = atof (st);
-	// GD_DEBUGF("Parsed Pos: %f %f %f\n", x,y,z);
-
-	// FS:500,8000 or F:500
-	pch = strtok (nullptr, "|");
-	while (pch != nullptr)
+	if (auto const mpos_separator_pos =
+	        i_status_string.find_first_of (kSeparator);
+	    etl::string_view::npos != mpos_separator_pos)
 	{
+		auto mpos_view = i_status_string;
 
-		if (startsWith (pch, "FS:") || startsWith (pch, "F:"))
+		mpos_view.remove_prefix (sizeof ("MPos:") - 1);
+
+		auto const coordinates = ConsumeCoordinatesTriplet (mpos_view);
+
+		x = coordinates.x;
+		y = coordinates.y;
+		z = coordinates.z;
+
+		i_status_string.remove_prefix (mpos_separator_pos + 1);
+	}
+	else
+	{
+		return;
+	}
+
+	input_pin_state_.clear ();
+
+	enum InfoMask {
+		kSpindleAndFeed = 0b001,
+		kWco            = 0b010,
+		kInputPinState  = 0b100
+	};
+
+	auto parsed_info = int{};
+
+	input_pin_state_.clear ();
+
+	for (auto next_separator_pos = i_status_string.find_first_of (kSeparator);
+	     etl::string_view::npos != next_separator_pos;
+	     i_status_string.remove_prefix (next_separator_pos + 1),
+	          next_separator_pos = i_status_string.find_first_of (kSeparator))
+	{
+		auto current_info_view = i_status_string;
+
+		if (!(parsed_info & InfoMask::kSpindleAndFeed) &&
+		    (current_info_view.starts_with ("FS:") ||
+		     current_info_view.starts_with ("F:")))
 		{
-			if (pch[ 1 ] == 'S')
+			if ('S' == current_info_view[ 1 ])
 			{
-				st = pch + 3;
-				fi = strchr (st, ',');
-				mystrcpy (buf, st, fi);
-				feed       = atoi (buf);
-				st         = fi + 1;
-				spindleVal = atoi (st);
+				current_info_view.remove_prefix (sizeof ("FS:") - 1);
+
+				feed = atof (current_info_view.data ());
+
+				current_info_view.remove_prefix (
+				    current_info_view.find_first_of (',') + 1);
+
+				spindleVal = atoi (current_info_view.data ());
 			}
 			else
 			{
-				feed = atoi (pch + 2);
-			}
-		}
-		else if (startsWith (pch, "WCO:"))
-		{
-			st = pch + 4;
-			fi = strchr (st, ',');
-			mystrcpy (buf, st, fi);
-			ofsX = atof (buf);
-			st   = fi + 1;
-			fi   = strchr (st, ',');
-			mystrcpy (buf, st, fi);
-			ofsY = atof (buf);
-			st   = fi + 1;
-			ofsZ = atof (st);
-			// GD_DEBUGF("Parsed WCO: %f %f %f\n", ofsX, ofsY, ofsZ);
-		}
+				current_info_view.remove_prefix (sizeof ("F:") - 1);
 
-		pch = strtok (nullptr, "|");
+				feed = atoi (current_info_view.data ());
+			}
+
+			parsed_info |= InfoMask::kSpindleAndFeed;
+		}
+		else if (
+		    !(parsed_info & InfoMask::kWco) &&
+		    current_info_view.starts_with ("WCO:"))
+		{
+			current_info_view.remove_prefix (sizeof ("WCO:") - 1);
+
+			auto const wco = ConsumeCoordinatesTriplet (current_info_view);
+
+			ofsX = wco.x;
+			ofsY = wco.y;
+			ofsZ = wco.z;
+
+			parsed_info |= InfoMask::kWco;
+		}
+		else if (
+		    !(parsed_info & InfoMask::kInputPinState) &&
+		    current_info_view.starts_with ("Pn:"))
+		{
+			static auto constexpr kPnPrefixSize = sizeof ("Pn:") - 1;
+
+			input_pin_state_ = String{
+			    current_info_view.data () + kPnPrefixSize,
+			    next_separator_pos - kPnPrefixSize + 1};
+
+			parsed_info |= InfoMask::kInputPinState;
+		}
 	}
 
 	notify_observers (DeviceStatusEvent{0});

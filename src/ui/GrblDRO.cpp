@@ -13,6 +13,9 @@
 #include "../option_selection.hpp"
 
 
+#include "../devices/GrblDevice.hpp"
+
+
 extern FileChooser     fileChooser;
 extern ToolTable< 25 > tool_table;
 extern SpindleControl  spindle_control;
@@ -256,9 +259,9 @@ void GrblDRO::notification (const DeviceStatusEvent& i_event)
 			    target_work_position_.y + dev->getYOfs (),
 			    target_work_position_.z + dev->getZOfs ()};
 		}
-
-		setDirty ();
 	}
+
+	setDirty ();
 }
 
 
@@ -343,6 +346,8 @@ void GrblDRO::drawContents ()
 		}
 	}
 
+	auto const& input_pin_state = dev->InputPinState ();
+
 	{ // Draw machine coordinates
 		u8g2.setFont (kMachFont);
 
@@ -358,8 +363,15 @@ void GrblDRO::drawContents ()
 
 		for (auto&& item : active_dro_items_)
 		{
-			DrawMachAxis (
-			    mach_coordinates[ item ], ComputeMachLineY (mach_line));
+			auto const line_y = ComputeMachLineY (mach_line);
+
+			DrawMachAxis (mach_coordinates[ item ], line_y);
+
+			if (-1 < input_pin_state.indexOf (item))
+			{
+				Display::u8g2.drawStr (
+				    u8g2.getWidth () - u8g2.getStrWidth ("!"), line_y, "!");
+			}
 
 			mach_line++;
 		}
@@ -385,6 +397,11 @@ void GrblDRO::drawContents ()
 			snprintf (tool_info, sizeof (tool_info), "MT%02d", active_tool);
 
 			u8g2.drawStr (tool_info_x, 0, tool_info);
+		}
+
+		if (-1 < input_pin_state.indexOf ("P"))
+		{
+			u8g2.drawStr (probe_state_x, 0, "P");
 		}
 	}
 
