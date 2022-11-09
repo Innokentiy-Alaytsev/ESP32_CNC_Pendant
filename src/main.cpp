@@ -187,11 +187,8 @@ void setup ()
 		if (res)
 		{
 			DEBUGF ("Starting job %s\n", path.c_str ());
-
 			job->setFile (path);
-
 			job->start ();
-			job->pause ();
 
 			Display::getDisplay ()->setScreen (dro); // select file
 		}
