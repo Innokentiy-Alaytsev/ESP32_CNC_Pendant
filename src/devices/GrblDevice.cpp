@@ -281,7 +281,8 @@ void GrblDevice::parseGrblStatus (etl::string_view i_status_string)
 
 			input_pin_state_ = String{
 			    current_info_view.data () + kPnPrefixSize,
-			    next_separator_pos - kPnPrefixSize + 1};
+			    static_cast< unsigned int > (
+			        next_separator_pos - kPnPrefixSize + 1)};
 
 			parsed_info |= InfoMask::kInputPinState;
 		}
