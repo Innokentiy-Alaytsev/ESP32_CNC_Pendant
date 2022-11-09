@@ -4,8 +4,11 @@
 #include <SPI.h>
 #include <U8g2lib.h>
 
+#include <etl/string_view.h>
+
 #include "InetServer.h"
 #include "Job.h"
+#include "WCharacter.h"
 #include "devices/GCodeDevice.h"
 
 #include "ui/DRO.h"
@@ -74,13 +77,15 @@ DynamicJsonDocument grbl_dro_config{512};
 
 enum class Mode { DRO, FILECHOOSER };
 
-Display         display;
-FileChooser     fileChooser;
-ToolTable< 25 > tool_table;
-SpindleControl  spindle_control;
-uint8_t         droBuffer[ sizeof (GrblDRO) ];
-DRO*            dro;
-Mode            cMode = Mode::DRO;
+using GrblToolTable = ToolTable< 25 >;
+
+Display        display;
+FileChooser    fileChooser;
+GrblToolTable  tool_table;
+SpindleControl spindle_control;
+uint8_t        droBuffer[ sizeof (GrblDRO) ];
+DRO*           dro;
+Mode           cMode = Mode::DRO;
 
 void encISR ();
 void bt1ISR ();
@@ -96,9 +101,57 @@ TaskHandle_t deviceTask;
 void         wifiLoop (void*);
 TaskHandle_t wifiTask;
 
+
+int ParseToolNumberFromFileName (const String& i_file_name)
+{
+	static auto constexpr kSeparator = '.';
+
+
+	auto file_name =
+	    etl::string_view{i_file_name.c_str (), i_file_name.length ()};
+
+	if (auto const slash_position = file_name.find_last_of ('/');
+	    etl::string_view::npos != slash_position)
+	{
+		file_name.remove_prefix (slash_position + 1);
+	}
+
+	for (auto next_separator_pos = file_name.find_first_of (kSeparator);
+	     etl::string_view::npos != next_separator_pos;
+	     file_name.remove_prefix (next_separator_pos + 1),
+	          next_separator_pos = file_name.find_first_of (kSeparator))
+	{
+		auto substr = etl::string_view{file_name.data (), next_separator_pos};
+
+		if (!substr.starts_with ('T') || (1 >= substr.size ()) ||
+		    (substr.size () > (GrblToolTable::kToolNumberMaxDigits + 1)))
+		{
+			continue;
+		}
+
+		substr.remove_prefix (substr.find_first_not_of ('0', 1));
+
+		if (0 == substr.size ())
+		{
+			continue;
+		}
+
+		auto const substr_tool_number = atoi (substr.data ());
+
+		if (0 >= substr_tool_number)
+		{
+			continue;
+		}
+
+		return substr_tool_number;
+	}
+
+	return GrblToolTable::kNoToolId;
+}
+
+
 void setup ()
 {
-
 	Serial.begin (115200);
 
 	pinMode (PIN_BT1, INPUT_PULLUP);
@@ -183,10 +236,20 @@ void setup ()
 	    [ &dro ] () { Display::getDisplay ()->setScreen (dro); });
 
 	fileChooser.begin ();
-	fileChooser.setCallback ([ & ] (bool res, String path) {
+	fileChooser.setCallback ([ & ] (bool res, const String& path) {
 		if (res)
 		{
 			DEBUGF ("Starting job %s\n", path.c_str ());
+
+			if (dev->getType () == "grbl")
+			{
+				if (auto const file_tool = ParseToolNumberFromFileName (path);
+				    GrblToolTable::kNoToolId != file_tool)
+				{
+					tool_table.SetActiveTool (file_tool, 'A');
+				}
+			}
+
 			job->setFile (path);
 			job->start ();
 
