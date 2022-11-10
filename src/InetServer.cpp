@@ -631,6 +631,41 @@ void WebServer::handleUpload (
 	}
 }
 
+
+void RemoveDirectory (const String& i_directory_name)
+{
+	auto directory = SD.open (i_directory_name);
+
+	if (!directory || !directory.isDirectory ())
+	{
+		return;
+	}
+
+	Serial.print ("removing directory "), Serial.println (i_directory_name);
+
+	for (File file = directory.openNextFile (); file;
+	     file      = directory.openNextFile ())
+	{
+		const auto file_name         = file.path ();
+		const auto file_is_directory = file.isDirectory ();
+
+		file.close ();
+
+		if (file_is_directory)
+		{
+			RemoveDirectory (file_name);
+		}
+		else
+		{
+			Serial.print ("\tremoving file "), Serial.println (file_name);
+			SD.remove (file_name);
+		}
+	}
+
+	SD.rmdir (i_directory_name);
+}
+
+
 void WebServer::registerWebBrowser ()
 {
 	server.onNotFound ([] (AsyncWebServerRequest* request) {
@@ -668,15 +703,21 @@ void WebServer::registerWebBrowser ()
 		resp.reserve (2048);
 		resp += "<html><body>\n<h1>Listing of \"" + sdir +
 		    "\"</h1>\n<form method='post' enctype='multipart/form-data'><input "
-		    "type='file' name='f'><input type='submit'></form>\n<ul>\n";
+		    "type='file' name='f'><input type='submit'></form>\n";
+
+		resp += "<form id=\"delete_buttons\" method=\"post\"></form>\n";
+		resp += "<form id=\"print_buttons\" method=\"post\"></form>\n";
+
+		resp += "<table>\n";
+		resp +=
+		    "<tr><th>File</th><th>Size</th><th>Print</th><th>Delete</th></"
+		    "tr>\n";
 
 		if (sdir.length () > 1)
 		{
-			int p = sdir.lastIndexOf ('/');
-			resp += "<li><a href=\"";
-			resp += fsPrefixSlash;
-			resp += sdir.substring (0, p);
-			resp += "\">../</a></li>\n";
+			resp += "<tr><td><a href=\"";
+			resp += fsPrefixSlash + sdir.substring (0, sdir.lastIndexOf ('/'));
+			resp += "\">../</a></td><td></td><td></td><td></td></tr>\n";
 		}
 
 		if (!sdir.endsWith ("/"))
@@ -685,6 +726,7 @@ void WebServer::registerWebBrowser ()
 		}
 
 		File f;
+
 		while (f = dir.openNextFile ())
 		{
 			auto const file_path = sdir + f.name ();
@@ -693,25 +735,34 @@ void WebServer::registerWebBrowser ()
 
 			Serial.println (file_name);
 
+			resp += "<tr><td><a href=\"/fs" + file_path + "\">" + file_name +
+			    "</a></td>";
+
 			if (f.isDirectory ())
 			{
-				resp += "<li><a href=\"/fs" + file_path + "/\">" + file_name +
-				    "</a></li>\n";
+				resp += "<td></td><td></td>";
 			}
 			else
 			{
-				resp += "<li><a href=\"/fs" + file_path + "\">" + file_name +
-				    "</a> " + f.size () + "B " +
-				    +"[<a href=\"/api2/print?file=" + file_path +
-				    "\">print</a>]</li>\n";
+				resp += "<td>" + String{f.size ()} +
+				    "B</td><td><button form=\"print_buttons\" type=\"submit\" "
+				    "formaction=\"/api2/print?file=" +
+				    file_path + "\">Print</button></td>";
 			}
+
+			resp +=
+			    "<td><button form=\"delete_buttons\" type=\"submit\" "
+			    "formaction=\"/api2/delete?file=" +
+			    file_path + "\">Delete</button><td>\n";
+
+			resp += "</tr>\n";
 
 			f.close ();
 		}
 
 		dir.close ();
 
-		resp += "\n</ul>\n</body></html>";
+		resp += "\n</table>\n</body></html>";
 
 		request->send (200, "text/html", resp);
 	});
@@ -740,7 +791,42 @@ void WebServer::registerWebBrowser ()
 		    handleUpload (req, filename, index, data, len, final);
 	    });
 
-	server.on ("/api2/print", HTTP_GET, [] (AsyncWebServerRequest* req) {
+	server.on (
+	    "/api2/delete", HTTP_POST, [] (AsyncWebServerRequest* i_request) {
+		    if (!i_request->hasParam ("file"))
+		    {
+			    i_request->send (400, "text/plain", "no file paraameter");
+
+			    return;
+		    }
+
+		    if (auto const file_name = i_request->getParam ("file")->value ();
+		        SD.exists (file_name))
+		    {
+			    File file = SD.open (file_name);
+
+			    const auto file_is_directory = file.isDirectory ();
+
+			    file.close ();
+
+			    if (file_is_directory)
+			    {
+				    RemoveDirectory (file_name);
+			    }
+			    else
+			    {
+				    SD.remove (file_name);
+			    }
+
+			    i_request->send (200, "text/plain", "Deleted");
+		    }
+		    else
+		    {
+			    i_request->send (404, "text/plain", "File not found");
+		    }
+	    });
+
+	server.on ("/api2/print", HTTP_POST, [] (AsyncWebServerRequest* req) {
 		if (!req->hasParam ("file"))
 		{
 			Serial.printf ("GET %s\n", req->url ().c_str ());
