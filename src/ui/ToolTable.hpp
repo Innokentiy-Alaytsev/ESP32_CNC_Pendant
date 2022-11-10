@@ -3,6 +3,7 @@
 
 
 #include <cassert>
+#include <cmath>
 
 #include <functional>
 
@@ -46,6 +47,12 @@ class ToolTable : public Screen {
 public:
 	static auto constexpr kCapacity = KCapacity;
 	static auto constexpr kNoToolId = -1;
+
+	static constexpr uint8_t kToolNumberMaxDigits =
+	    static_cast< uint8_t > (std::log10 (KCapacity) + 1);
+
+	static constexpr char kNoToolGlyph     = 'N';
+	static constexpr char kManualToolGlyph = 'M';
 
 
 	ToolTable () = default;
@@ -97,9 +104,23 @@ public:
 	}
 
 
+	void SetActiveTool (int i_tool_id, char i_glyph) noexcept
+	{
+		tool_choice_glyph_ = i_glyph;
+
+		active_tool_ = i_tool_id;
+	}
+
+
 	int CurrentTool () const noexcept
 	{
 		return active_tool_;
+	}
+
+
+	char ToolChoiceGlyph () const noexcept
+	{
+		return tool_choice_glyph_;
 	}
 
 
@@ -194,9 +215,16 @@ protected:
 			auto const active_tool_index =
 			    static_cast< size_t > (active_tool_line_ - 1);
 
-			active_tool_ = (0 < active_tool_line_)
-			    ? ((tools_.begin () + active_tool_index)->first)
-			    : kNoToolId;
+			if ((0 < active_tool_line_))
+			{
+				SetActiveTool (
+				    (tools_.begin () + active_tool_index)->first,
+				    kManualToolGlyph);
+			}
+			else
+			{
+				SetActiveTool (kNoToolId, kNoToolGlyph);
+			}
 
 			if (auto const device = GCodeDevice::getDevice ())
 			{
@@ -317,6 +345,8 @@ private:
 
 	int active_tool_{kNoToolId};
 	int active_tool_line_{0};
+
+	char tool_choice_glyph_{kNoToolGlyph};
 
 	CoordinateOffsets base_offsets_;
 

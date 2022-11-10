@@ -386,18 +386,16 @@ void GrblDRO::drawContents ()
 
 		auto const active_tool = tool_table.CurrentTool ();
 
-		if (ToolTable< 25 >::kNoToolId == active_tool)
-		{
-			u8g2.drawStr (tool_info_x, 0, "NTxx");
-		}
-		else
-		{
-			char tool_info[ sizeof ("MT??") ];
+		char tool_info[ sizeof ("MT??") ];
 
-			snprintf (tool_info, sizeof (tool_info), "MT%02d", active_tool);
+		snprintf (
+		    tool_info,
+		    sizeof (tool_info),
+		    "%cT%02d",
+		    tool_table.ToolChoiceGlyph (),
+		    active_tool);
 
-			u8g2.drawStr (tool_info_x, 0, tool_info);
-		}
+		u8g2.drawStr (tool_info_x, 0, tool_info);
 
 		if (-1 < input_pin_state.indexOf ("P"))
 		{
