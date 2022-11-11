@@ -12,9 +12,9 @@
 
 #include <etl/algorithm.h>
 #include <etl/flat_map.h>
+#include <etl/iterator.h>
 #include <etl/string.h>
 #include <etl/utility.h>
-#include <stdio.h>
 
 #include "../CoordinateOffsets.hpp"
 #include "Screen.h"
@@ -106,9 +106,32 @@ public:
 
 	void SetActiveTool (int i_tool_id, char i_glyph) noexcept
 	{
+		auto const new_tool_it = tools_.find (i_tool_id);
+
+		if (tools_.end () == new_tool_it)
+		{
+			Serial.printf ("%s: No tool # %d", __func__, i_tool_id);
+
+			return;
+		}
+
 		tool_choice_glyph_ = i_glyph;
 
+		if (i_tool_id == active_tool_)
+		{
+			return;
+		}
+
+		auto const prev_tool = active_tool_;
+
+		active_tool_line_ = etl::distance (tools_.begin (), new_tool_it) + 1;
+
 		active_tool_ = i_tool_id;
+
+		if (auto const device = GCodeDevice::getDevice ())
+		{
+			UpdateToolOffsets (prev_tool, active_tool_, device);
+		}
 	}
 
 
@@ -224,11 +247,6 @@ protected:
 			else
 			{
 				SetActiveTool (kNoToolId, kNoToolGlyph);
-			}
-
-			if (auto const device = GCodeDevice::getDevice ())
-			{
-				UpdateToolOffsets (prev_tool, active_tool_, device);
 			}
 
 			setDirty ();
