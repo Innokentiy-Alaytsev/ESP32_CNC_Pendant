@@ -45,4 +45,6 @@ protected:
 	void drawContents () override;
 
 	void onButtonPressed (Button bt, int8_t arg) override;
+
+	void onShow () override;
 };

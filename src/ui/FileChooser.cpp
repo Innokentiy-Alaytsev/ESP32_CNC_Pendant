@@ -23,10 +23,12 @@ void FileChooser::loadDirContents (File newDir, int startingIndex)
 	if (!cDir || strcmp (cDir.name (), newDir.name ()) != 0)
 	{
 		cDir = newDir;
+
+		topLine = 0;
 		// FC_DEBUGF("loadDirContents opening new dir %s\n", cDir.name() );
 	}
 
-	topLine = 0;
+	auto const old_top_line = topLine;
 
 	File file;
 
@@ -67,6 +69,15 @@ void FileChooser::loadDirContents (File newDir, int startingIndex)
 		i++;
 
 		file.close ();
+	}
+
+	if (files.size () < old_top_line)
+	{
+		topLine = 0;
+	}
+	else
+	{
+		topLine = old_top_line;
 	}
 
 	S_DEBUGF ("loadDirContents: file count %d\n", files.size ());
@@ -248,4 +259,10 @@ void FileChooser::onButtonPressed (Button bt, int8_t arg)
 	default:
 		break;
 	}
+}
+
+
+void FileChooser::onShow ()
+{
+	loadDirContents (cDir);
 }
