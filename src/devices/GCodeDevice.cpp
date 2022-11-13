@@ -50,9 +50,9 @@ GCodeDevice* DeviceDetector::checkProbe (uint8_t i, String v, Stream& serial)
 		}
 	}
 
-	return nullptr;
+	GD_DEBUGS ("Falling back to GRBL device");
 
-	// return false;
+	return new (deviceBuffer) GrblDevice (&serial);
 }
 
 GCodeDevice* DeviceDetector::detectPrinterAttempt (
