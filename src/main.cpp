@@ -88,9 +88,9 @@ DRO*           dro;
 Mode           cMode = Mode::DRO;
 
 void encISR ();
-void bt1ISR ();
-void bt2ISR ();
-void bt3ISR ();
+
+template < size_t KButtonIndex, uint8_t KPin >
+void ButtonISR ();
 
 bool detectPrinterAttempt (uint32_t speed, uint8_t type);
 void detectPrinter ();
@@ -163,9 +163,9 @@ void setup ()
 
 	attachInterrupt (PIN_ENC1, encISR, CHANGE);
 	attachInterrupt (PIN_ENC2, encISR, CHANGE);
-	attachInterrupt (PIN_BT1, bt1ISR, CHANGE);
-	attachInterrupt (PIN_BT2, bt2ISR, CHANGE);
-	attachInterrupt (PIN_BT3, bt3ISR, CHANGE);
+	attachInterrupt (PIN_BT1, ButtonISR< 0, PIN_BT1 >, FALLING);
+	attachInterrupt (PIN_BT2, ButtonISR< 1, PIN_BT2 >, FALLING);
+	attachInterrupt (PIN_BT3, ButtonISR< 2, PIN_BT3 >, FALLING);
 
 	u8g2_.begin ();
 	u8g2_.setBusClock (600000);
@@ -321,9 +321,44 @@ void readPots ()
 	Display::potVal[ 1 ] = analogRead (PIN_POT2);
 }
 
+
+struct ButtonInput {
+	uint8_t write_state : 1;
+	uint8_t read_state : 1;
+
+	bool state[ 2 ]{};
+
+	uint32_t last_change_time{};
+};
+
+
+static constexpr uint32_t kDebouncePeriod = 250;
+
+
+ButtonInput buttons[ 3 ]{{0, 1}, {0, 1}, {0, 1}};
+
+
 void loop ()
 {
 	readPots ();
+
+	const auto current_time = millis ();
+
+	for (auto&& button : buttons)
+	{
+		if (kDebouncePeriod > (current_time - button.last_change_time))
+		{
+			continue;
+		}
+
+		Display::buttonPressed[ &button - &buttons[ 0 ] ] =
+		    button.state[ button.read_state ];
+
+		button.state[ button.read_state ] = false;
+
+		button.read_state++;
+		button.write_state++;
+	}
 
 	job->loop ();
 
@@ -372,34 +407,12 @@ IRAM_ATTR void encISR ()
 	Display::encVal = (counter >> 2);
 }
 
-IRAM_ATTR void btChanged (uint8_t button, uint8_t val)
-{
-	Display::buttonPressed[ button ] = val == LOW;
-}
 
-IRAM_ATTR void bt1ISR ()
+template < size_t KButtonIndex, uint8_t KPin >
+IRAM_ATTR void ButtonISR ()
 {
-	static long lastChangeTime = millis ();
-	if (millis () < lastChangeTime + 10)
-		return;
-	lastChangeTime = millis ();
-	btChanged (0, digitalRead (PIN_BT1));
-}
+	auto& button = buttons[ KButtonIndex ];
 
-IRAM_ATTR void bt2ISR ()
-{
-	static long lastChangeTime = millis ();
-	if (millis () < lastChangeTime + 10)
-		return;
-	lastChangeTime = millis ();
-	btChanged (1, digitalRead (PIN_BT2));
-}
-
-IRAM_ATTR void bt3ISR ()
-{
-	static long lastChangeTime = millis ();
-	if (millis () < lastChangeTime + 10)
-		return;
-	lastChangeTime = millis ();
-	btChanged (2, digitalRead (PIN_BT3));
+	button.state[ button.write_state ] = (LOW == digitalRead (KPin));
+	button.last_change_time            = millis ();
 }
