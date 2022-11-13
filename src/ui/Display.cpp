@@ -82,63 +82,59 @@ void Display::processEnc ()
 
 void Display::processButtons ()
 {
-	static bool         lastButtPressed[ 3 ];
 	static const Button buttons[] = {Button::BT1, Button::BT2, Button::BT3};
 	if (cScreen == nullptr)
 		return;
 	for (int bt = 0; bt < 3; bt++)
 	{
 		bool p = buttonPressed[ bt ];
-		if (lastButtPressed[ bt ] != p)
+
+		S_DEBUGF ("button %d [%d] changed: %d\n", bt, buttons[ bt ], p);
+		if (p)
 		{
-			S_DEBUGF ("button %d [%d] changed: %d\n", bt, buttons[ bt ], p);
-			if (p)
+			int menuLen = cScreen->menuItems.size ();
+			if (menuLen != 0)
 			{
-				int menuLen = cScreen->menuItems.size ();
-				if (menuLen != 0)
+				if (bt == 0)
 				{
-					if (bt == 0)
+					selMenuItem =
+					    selMenuItem > 0 ? selMenuItem - 1 : menuLen - 1;
+					ensureSelMenuVisible ();
+					setDirty ();
+				}
+				if (bt == 2)
+				{
+					selMenuItem = (selMenuItem + 1) % menuLen;
+					ensureSelMenuVisible ();
+					setDirty ();
+				}
+				if (bt == 1)
+				{
+					MenuItem& item = cScreen->menuItems[ selMenuItem ];
+					if (!item.togglalbe)
 					{
-						selMenuItem =
-						    selMenuItem > 0 ? selMenuItem - 1 : menuLen - 1;
-						ensureSelMenuVisible ();
-						setDirty ();
+						item.onCmd (item);
 					}
-					if (bt == 2)
+					else
 					{
-						selMenuItem = (selMenuItem + 1) % menuLen;
-						ensureSelMenuVisible ();
-						setDirty ();
-					}
-					if (bt == 1)
-					{
-						MenuItem& item = cScreen->menuItems[ selMenuItem ];
-						if (!item.togglalbe)
+						if (item.on)
 						{
-							item.onCmd (item);
+							item.offCmd (item);
+							item.on = false;
 						}
 						else
 						{
-							if (item.on)
-							{
-								item.offCmd (item);
-								item.on = false;
-							}
-							else
-							{
-								item.onCmd (item);
-								item.on = true;
-							}
+							item.onCmd (item);
+							item.on = true;
 						}
 					}
-					// cScreen->onMenuItemSelected(cScreen->menuItems[selMenuItem]);
 				}
-				else
-				{
-					cScreen->onButtonPressed (buttons[ bt ], 1);
-				}
+				// cScreen->onMenuItemSelected(cScreen->menuItems[selMenuItem]);
 			}
-			lastButtPressed[ bt ] = p;
+			else
+			{
+				cScreen->onButtonPressed (buttons[ bt ], 1);
+			}
 		}
 	}
 }
