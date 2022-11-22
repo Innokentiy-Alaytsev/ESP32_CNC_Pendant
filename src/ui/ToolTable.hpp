@@ -106,9 +106,14 @@ public:
 
 	void SetActiveTool (int i_tool_id, char i_glyph) noexcept
 	{
+		if (i_tool_id == active_tool_)
+		{
+			return;
+		}
+
 		auto const new_tool_it = tools_.find (i_tool_id);
 
-		if (tools_.end () == new_tool_it)
+		if ((kNoToolId != i_tool_id) && (tools_.end () == new_tool_it))
 		{
 			Serial.printf ("%s: No tool # %d", __func__, i_tool_id);
 
@@ -117,14 +122,11 @@ public:
 
 		tool_choice_glyph_ = i_glyph;
 
-		if (i_tool_id == active_tool_)
-		{
-			return;
-		}
-
 		auto const prev_tool = active_tool_;
 
-		active_tool_line_ = etl::distance (tools_.begin (), new_tool_it) + 1;
+		active_tool_line_ = (kNoToolId == i_tool_id)
+		    ? 0
+		    : (etl::distance (tools_.begin (), new_tool_it) + 1);
 
 		active_tool_ = i_tool_id;
 
@@ -238,7 +240,7 @@ protected:
 			auto const active_tool_index =
 			    static_cast< size_t > (active_tool_line_ - 1);
 
-			if ((0 < active_tool_line_))
+			if (0 < active_tool_line_)
 			{
 				SetActiveTool (
 				    (tools_.begin () + active_tool_index)->first,
