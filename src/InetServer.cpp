@@ -26,7 +26,7 @@ void WebServer::config (JsonObjectConst cfg)
 
 void WebServer::begin ()
 {
-
+	WiFi.mode (WIFI_STA);
 	WiFi.begin (essid.c_str (), password.c_str ());
 
 	while (WiFi.status () != WL_CONNECTED)
@@ -34,6 +34,8 @@ void WebServer::begin ()
 		delay (500);
 		Serial.print (".");
 	}
+
+	WiFi.setAutoReconnect (true);
 
 	Serial.println ("");
 	Serial.println ("WiFi connected.");
