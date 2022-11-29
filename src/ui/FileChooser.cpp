@@ -202,7 +202,7 @@ void FileChooser::onButtonPressed (Button bt, int8_t arg)
 
 		S_DEBUGF (
 		    "FileChooser::onButtonPressed(BT2): dir='%s'  file='%s'\n",
-		    cDir.name (),
+		    cDir.path (),
 		    file.c_str ());
 
 		bool isDir = file.charAt (file.length () - 1) == '/';
@@ -212,7 +212,7 @@ void FileChooser::onButtonPressed (Button bt, int8_t arg)
 			file = file.substring (0, file.length () - 1);
 		}
 
-		String cDirName = cDir.name ();
+		String cDirName = cDir.path ();
 
 		if (cDirName.charAt (cDirName.length () - 1) != '/')
 		{
